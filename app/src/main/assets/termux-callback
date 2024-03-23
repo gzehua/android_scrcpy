@@ -7,5 +7,7 @@ echo "TERMUX_USB_FD=$TERMUX_USB_FD" >> /sdcard/termux-callback.log
 echo $TERMUX_USB_DEV
 echo $TERMUX_USB_FD
 echo $TERMUX_ADB_SOCK_FD
-termux-toast "$TERMUX_USB_DEV $TERMUX_ADB_SOCK_FD $TERMUX_USB_FD"
+#连接成功震动一下
+termux-vibrate -d 100
+#termux-toast "$TERMUX_USB_DEV $TERMUX_ADB_SOCK_FD $TERMUX_USB_FD"
 $TERMUX_CALLBACK "$@"
