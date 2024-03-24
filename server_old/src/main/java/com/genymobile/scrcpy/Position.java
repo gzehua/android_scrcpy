@@ -5,8 +5,8 @@ import android.graphics.Point;
 import java.util.Objects;
 
 public class Position {
-    private Point point;
-    private Size screenSize;
+    private final Point point;
+    private final Size screenSize;
 
     public Position(Point point, Size screenSize) {
         this.point = point;
@@ -25,6 +25,19 @@ public class Position {
         return screenSize;
     }
 
+//    public Position rotate(int rotation) {
+//        switch (rotation) {
+//            case 1:
+//                return new Position(new Point(screenSize.getHeight() - point.getY(), point.getX()), screenSize.rotate());
+//            case 2:
+//                return new Position(new Point(screenSize.getWidth() - point.getX(), screenSize.getHeight() - point.getY()), screenSize);
+//            case 3:
+//                return new Position(new Point(point.getY(), screenSize.getWidth() - point.getX()), screenSize.rotate());
+//            default:
+//                return this;
+//        }
+//    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -34,8 +47,7 @@ public class Position {
             return false;
         }
         Position position = (Position) o;
-        return Objects.equals(point, position.point)
-                && Objects.equals(screenSize, position.screenSize);
+        return Objects.equals(point, position.point) && Objects.equals(screenSize, position.screenSize);
     }
 
     @Override
@@ -45,10 +57,7 @@ public class Position {
 
     @Override
     public String toString() {
-        return "Position{"
-                + "point=" + point
-                + ", screenSize=" + screenSize
-                + '}';
+        return "Position{" + "point=" + point + ", screenSize=" + screenSize + '}';
     }
 
 }

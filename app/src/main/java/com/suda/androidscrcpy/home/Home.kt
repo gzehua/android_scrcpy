@@ -1,17 +1,16 @@
 package com.suda.androidscrcpy.home
 
 import android.content.Intent
-import android.widget.EditText
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.magnifier
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
@@ -24,7 +23,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.suda.androidscrcpy.MainVM
 import com.suda.androidscrcpy.ScrcpyActivity
 
@@ -37,22 +35,23 @@ fun Home(mainVM: MainVM) {
     if (showDialog) {
         Dialog(
             onDismissRequest = { showDialog = false },
-            properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
         ) {
-            Column(horizontalAlignment = Alignment.End) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = "IP", Modifier.width(60.dp))
-                    TextField(value = ip, onValueChange = { ip = it })
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = "PORT", Modifier.width(60.dp))
-                    TextField(value = port, onValueChange = { port = it })
-                }
-                Button(onClick = {
-                    mainVM.connect(ip, port)
-                    showDialog = false
-                }) {
-                    Text(text = "添加")
+            Card {
+                Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = "IP", Modifier.width(60.dp))
+                        TextField(value = ip, onValueChange = { ip = it })
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = "PORT", Modifier.width(60.dp))
+                        TextField(value = port, onValueChange = { port = it })
+                    }
+                    Button(onClick = {
+                        mainVM.connect(ip, port)
+                        showDialog = false
+                    }) {
+                        Text(text = "添加")
+                    }
                 }
             }
         }

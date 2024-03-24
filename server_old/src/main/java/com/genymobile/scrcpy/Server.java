@@ -12,8 +12,8 @@ public final class Server {
 
     private static void scrcpy(Options options) throws IOException {
         final Device device = new Device(options);
-        try (DroidConnection connection = DroidConnection.open(ip)) {
-            ScreenEncoder screenEncoder = new ScreenEncoder(options.getBitRate());
+        try (DesktopConnection connection = DesktopConnection.open(ip)) {
+            SurfaceEncoder screenEncoder = new SurfaceEncoder(options.getBitRate());
 
             // asynchronous
             startEventController(device, connection);
@@ -31,7 +31,7 @@ public final class Server {
         }
     }
 
-    private static void startEventController(final Device device, final DroidConnection connection) {
+    private static void startEventController(final Device device, final DesktopConnection connection) {
         new Thread(new Runnable() {
             @Override
             public void run() {

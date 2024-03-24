@@ -1,12 +1,12 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion 28
+    namespace 'com.genymobile.scrcpy'
+    compileSdk 34
     defaultConfig {
-        namespace "com.genymobile.scrcpy"
         applicationId "com.genymobile.scrcpy"
-        minSdkVersion 19
-        targetSdkVersion 28
+        minSdkVersion 21
+        targetSdkVersion 34
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
@@ -27,9 +27,9 @@ android {
     }
 
     task copyRelease(dependsOn: 'deleteServer', type: Copy){
-        from file('build/outputs/apk/release/server-release-unsigned.apk')
+        from file('build/outputs/apk/release/server_old-release-unsigned.apk')
         into file('../app/src/main/assets')
-        rename('server-release-unsigned.apk', 'scrcpy-server.jar')
+        rename('server_old-release-unsigned.apk', 'scrcpy-server.jar')
     }
 
     task deleteServer(type: Delete){

@@ -1,7 +1,7 @@
 package com.genymobile.scrcpy;
 
-import android.net.LocalServerSocket;
 import android.net.LocalSocket;
+import android.net.LocalSocketAddress;
 import android.util.Log;
 
 import java.io.Closeable;
@@ -10,36 +10,41 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-public final class DroidConnection implements Closeable {
+public final class DesktopConnection implements Closeable {
 
 
     private static LocalSocket socket = null;
     private OutputStream outputStream;
     private InputStream inputStream;
 
-    private DroidConnection(LocalSocket socket) throws IOException {
+    private DesktopConnection(LocalSocket socket) throws IOException {
         this.socket = socket;
 
         inputStream = socket.getInputStream();
         outputStream = socket.getOutputStream();
     }
 
+    private static LocalSocket connect(String abstractName) throws IOException {
+        LocalSocket localSocket = new LocalSocket();
+        localSocket.connect(new LocalSocketAddress(abstractName));
+        return localSocket;
+    }
+
 
     private static LocalSocket listenAndAccept() throws IOException {
         System.out.println("listenAndAccept");
-        LocalServerSocket serverSocket = new LocalServerSocket("scrcpy");
         LocalSocket sock = null;
         try {
-            sock = serverSocket.accept();
-        } finally {
-            serverSocket.close();
+            sock = connect("scrcpy");
+        } catch (Exception e){
+
         }
         return sock;
     }
 
-    public static DroidConnection open(String ip) throws IOException {
+    public static DesktopConnection open(String ip) throws IOException {
         socket = listenAndAccept();
-        DroidConnection connection = new DroidConnection(socket);
+        DesktopConnection connection = new DesktopConnection(socket);
         Log.d("DroidConnection", "open");
         return connection;
     }

@@ -16,7 +16,7 @@ import java.io.IOException;
 public class EventController {
 
     private final Device device;
-    private final DroidConnection connection;
+    private final DesktopConnection connection;
     private final MotionEvent.PointerProperties[] pointerProperties = {new MotionEvent.PointerProperties()};
     private final MotionEvent.PointerCoords[] pointerCoords = {new MotionEvent.PointerCoords()};
     private long lastMouseDown;
@@ -24,7 +24,7 @@ public class EventController {
     private boolean hit = false;
     private boolean proximity = false;
 
-    public EventController(Device device, DroidConnection connection) {
+    public EventController(Device device, DesktopConnection connection) {
         this.device = device;
         this.connection = connection;
         initPointer();

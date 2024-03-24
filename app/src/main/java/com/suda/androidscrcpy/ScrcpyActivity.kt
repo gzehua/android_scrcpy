@@ -1,18 +1,13 @@
 package com.suda.androidscrcpy
 
 import android.annotation.SuppressLint
-import android.content.Context
 import android.hardware.SensorManager
 import android.os.Bundle
-import android.util.DisplayMetrics
 import android.view.MotionEvent
 import android.view.Surface
 import android.view.SurfaceView
 import android.view.View
-import android.view.View.OnTouchListener
-import android.view.ViewConfiguration
 import android.widget.Button
-import androidx.lifecycle.lifecycleScope
 import com.suda.androidscrcpy.decoder.VideoDecoder
 import com.suda.androidscrcpy.model.ByteUtils
 import com.suda.androidscrcpy.model.MediaPacket
@@ -20,12 +15,11 @@ import com.suda.androidscrcpy.model.VideoPacket
 import com.suda.androidscrcpy.model.VideoPacket.StreamSettings
 import com.suda.androidscrcpy.utils.ADBUtils
 import com.suda.androidscrcpy.utils.ADBUtils.SC_DEVICE_SERVER_PATH
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.IOException
 import java.io.InputStream
+import java.net.ServerSocket
 import java.net.Socket
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
@@ -37,10 +31,6 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
     private val LetServceRunning = AtomicBoolean(true)
     private var videoDecoder: VideoDecoder? = null
 
-    //    private static final String TAG = "MainActivity";
-    private val PREFERENCE_KEY = "default"
-    private val PREFERENCE_SPINNER_RESOLUTION = "spinner_resolution"
-    private val PREFERENCE_SPINNER_BITRATE = "spinner_bitrate"
     private var screenWidth = 0
     private var screenHeight = 0
     private val landscape = false
@@ -48,16 +38,9 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
     private val resultofRotation = false
     var sensorManager: SensorManager? = null
 
-    //    private val sendCommands: SendCommands? = null
-    private val videoBitrate = 0
-    private val localip: String? = null
-    private val context: Context? = null
     private val inputStream: InputStream? = null
     private var surfaceView: SurfaceView? = null
     private var surface: Surface? = null
-
-    //    private val scrcpy: Scrcpy? = null
-    private val timestamp: Long = 0
 
     private val device: String? by lazy {
         intent.getStringExtra("device")
@@ -67,9 +50,11 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
         intent.getBooleanExtra("withNav", true)
     }
 
+    private val mActionQueue = ConcurrentLinkedQueue<ByteArray>()
+
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
 
 
         ADBUtils.exec(
@@ -85,169 +70,86 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
             "adb.bin-arm",
             "-s",
             device.toString(),
-            "forward",
-            "tcp:5005",
-            "tcp:7007"
+            "reverse",
+            "localabstract:scrcpy",
+            "tcp:5005"
         )
 
-//        ADBUtils.exec2(
-//            "adb.bin-arm",
-//            "-s",
-//            device.toString(),
-//            "shell",
-//            "CLASSPATH=$SC_DEVICE_SERVER_PATH app_process -XjdwpProvider:internal -XjdwpOptions:transport=dt_socket,suspend=y,server=y,address=5005 / com.genymobile.scrcpy.Server 2.4",
-//        )
-
-
-//        ADBUtils.exec2(
-//            "adb.bin-arm",
-//            "-s",
-//            device.toString(),
-//            "shell",
-//            "CLASSPATH=/data/local/tmp/app_server app_process /data/local/tmp/ com.nightmare.applib.AppServer",
-//        )
-
-        ADBUtils.exec(
-            "adb.bin-arm",
-            "-s",
-            device.toString(),
-            "forward",
-            "tcp:5005",
-            "localabstract:scrcpy"
-        )
-
+        screenWidth = 1080
+        screenHeight = 1920
+        setUpUi(withNav)
+        start()
 
         Thread {
-
             ADBUtils.exec2(
                 "adb.bin-arm",
                 "-s",
                 device.toString(),
                 "shell",
-                "CLASSPATH=/data/local/tmp/scrcpy-server.jar app_process / com.genymobile.scrcpy.Server /127.0.0.1 1920 6144000",
+                "CLASSPATH=/data/local/tmp/scrcpy-server.jar app_process / com.genymobile.scrcpy.Server /127.0.0.1 1920 12288000",
             )
-
         }.start()
+    }
 
 
-
-        screenWidth = 1080
-        screenHeight = 1920
-
+    @SuppressLint("ClickableViewAccessibility")
+    private fun setUpUi(withNav: Boolean) {
+        setContentView(if (withNav) R.layout.surface_nav else R.layout.surface_no_nav)
+        val decorView = window.decorView
+        decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY)
+        surfaceView = findViewById<View>(R.id.decoder_surface) as SurfaceView
+        surface = surfaceView!!.holder.surface
         if (withNav) {
-            startwithNav()
-        } else {
-            startwithoutNav()
+            val backButton = findViewById<View>(R.id.back_button) as Button
+            val homeButton = findViewById<View>(R.id.home_button) as Button
+            val appswitchButton = findViewById<View>(R.id.appswitch_button) as Button
+            backButton.setOnClickListener {
+                ADBUtils.exec(
+                    "adb.bin-arm",
+                    "-s",
+                    device.toString(),
+                    "shell", "input", "keyevent", "4"
+                )
+            }
+            homeButton.setOnClickListener {
+                ADBUtils.exec(
+                    "adb.bin-arm",
+                    "-s",
+                    device.toString(),
+                    "shell",
+                    "input",
+                    "keyevent",
+                    "3"
+                )
+            }
+            appswitchButton.setOnClickListener {
+                ADBUtils.exec(
+                    "adb.bin-arm",
+                    "-s",
+                    device.toString(),
+                    "shell",
+                    "input",
+                    "keyevent",
+                    "187"
+                )
+            }
         }
-
-        lifecycleScope.launch {
-            delay(1000)
-            start()
-
-        }
-    }
-
-
-    @SuppressLint("ClickableViewAccessibility")
-    private fun startwithoutNav() {
-        setContentView(R.layout.surface_no_nav)
-        val decorView = window.decorView
-        decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY)
-        surfaceView = findViewById<View>(R.id.decoder_surface) as SurfaceView
-        surface = surfaceView!!.getHolder().getSurface()
-        val metrics = DisplayMetrics()
-        if (ViewConfiguration.get(this).hasPermanentMenuKey()) {
-            windowManager.defaultDisplay.getMetrics(metrics)
-        } else {
-            val display = windowManager.defaultDisplay
-            display.getRealMetrics(metrics)
-        }
-        val height = metrics.heightPixels
-        val width = metrics.widthPixels
-        surfaceView!!.setOnTouchListener(OnTouchListener { v, event ->
+        surfaceView!!.setOnTouchListener { _, event ->
             touchevent(
                 event,
                 surfaceView!!.width,
                 surfaceView!!.height
             )
-
-            true
-        })
-    }
-
-    @SuppressLint("ClickableViewAccessibility")
-    private fun startwithNav() {
-        setContentView(R.layout.surface_nav)
-        val decorView = window.decorView
-        decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY)
-        val backButton = findViewById<View>(R.id.back_button) as Button
-        val homeButton = findViewById<View>(R.id.home_button) as Button
-        val appswitchButton = findViewById<View>(R.id.appswitch_button) as Button
-        surfaceView = findViewById<View>(R.id.decoder_surface) as SurfaceView
-        surface = surfaceView!!.getHolder().getSurface()
-        val metrics = DisplayMetrics()
-        var offset = 0
-        if (ViewConfiguration.get(this).hasPermanentMenuKey()) {
-            val display = windowManager.defaultDisplay
-            display.getRealMetrics(metrics)
-            offset = 100
-        } else {
-            windowManager.defaultDisplay.getMetrics(metrics)
-        }
-        val height = metrics.heightPixels - offset
-        val width = metrics.widthPixels
-        surfaceView!!.setOnTouchListener(OnTouchListener { v, event ->
-            touchevent(
-                event,
-                surfaceView!!.width,
-                surfaceView!!.height
-            )
-            true
-        })
-        backButton.setOnClickListener {
-            ADBUtils.exec(
-                "adb.bin-arm",
-                "-s",
-                device.toString(),
-                "shell", "input", "keyevent", "4"
-            )
-        }
-        homeButton.setOnClickListener {
-            ADBUtils.exec(
-                "adb.bin-arm",
-                "-s",
-                device.toString(),
-                "shell",
-                "input",
-                "keyevent",
-                "3"
-            )
-        }
-        appswitchButton.setOnClickListener {
-            ADBUtils.exec(
-                "adb.bin-arm",
-                "-s",
-                device.toString(),
-                "shell",
-                "input",
-                "keyevent",
-                "187"
-            )
         }
     }
 
-    val queue = ConcurrentLinkedQueue<ByteArray>()
-    fun touchevent(touch_event: MotionEvent, displayW: Int, displayH: Int): Boolean {
+
+    private fun touchevent(touch_event: MotionEvent, displayW: Int, displayH: Int): Boolean {
         val buf = intArrayOf(
             touch_event.action,
             touch_event.buttonState,
@@ -263,7 +165,7 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
             array[j * 4 + 2] = (c and 0xFF00 shr 8).toByte()
             array[j * 4 + 3] = (c and 0xFF).toByte()
         }
-        queue.offer(array)
+        mActionQueue.offer(array)
         return true
     }
 
@@ -280,9 +182,11 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
         var socket: Socket? = null
         var streamSettings: StreamSettings? = null
         var attempts = 50
+        var serverSocket :ServerSocket?=null
         while (attempts != 0) {
             try {
-                socket = Socket("127.0.0.1", 5005)
+                serverSocket = ServerSocket(5005)
+                socket = serverSocket.accept()
                 dataInputStream = DataInputStream(socket.getInputStream())
                 dataOutputStream = DataOutputStream(socket.getOutputStream())
                 var packetSize: ByteArray
@@ -290,10 +194,10 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
                 while (LetServceRunning.get()) {
                     try {
 
-                        var event = queue.poll()
+                        var event = mActionQueue.poll()
                         while (event != null) {
                             dataOutputStream.write(event, 0, event!!.size)
-                            event = queue.poll()
+                            event = mActionQueue.poll()
                         }
 
                         if (dataInputStream.available() > 0) {
@@ -344,6 +248,7 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
                             }
                         }
                     } catch (e: IOException) {
+                    } catch (e2:IllegalStateException){
                     }
                 }
             } catch (e: IOException) {
@@ -354,6 +259,13 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
                 }
                 //                 Log.e("Scrcpy", e.getMessage());
             } finally {
+                if (serverSocket!=null){
+                    try {
+                        serverSocket.close()
+                    } catch (e: IOException) {
+                        e.printStackTrace()
+                    }
+                }
                 if (socket != null) {
                     try {
                         socket.close()
