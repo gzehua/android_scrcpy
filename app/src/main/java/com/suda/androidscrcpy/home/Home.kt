@@ -74,7 +74,7 @@ fun Home(mainVM: MainVM) {
                         Button(onClick = {
                             ctx.startActivity(Intent(ctx, ScrcpyActivity::class.java).apply {
                                 putExtra("device", adbs[it].split("\t")[0])
-                                putExtra("withNav", false)
+                                putExtra("withNav", true)
                             })
                         }, modifier = Modifier.align(Alignment.CenterEnd)) {
                             Text(text = "连接")
