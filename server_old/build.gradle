@@ -1,0 +1,62 @@
+apply plugin: 'com.android.application'
+
+android {
+    compileSdkVersion 28
+    defaultConfig {
+        namespace "com.genymobile.scrcpy"
+        applicationId "com.genymobile.scrcpy"
+        minSdkVersion 19
+        targetSdkVersion 28
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+
+        }
+    }
+    
+    buildFeatures {
+        buildConfig true
+        aidl true
+    }
+
+    task copyRelease(dependsOn: 'deleteServer', type: Copy){
+        from file('build/outputs/apk/release/server-release-unsigned.apk')
+        into file('../app/src/main/assets')
+        rename('server-release-unsigned.apk', 'scrcpy-server.jar')
+    }
+
+    task deleteServer(type: Delete){
+	delete "../app/src/main/assets/scrcpy-server.jar"
+   }
+
+
+    task copyDebug (dependsOn: 'deleteServer', type: Copy){
+        from file("build/outputs/apk/debug/server_old-debug.apk")
+        into file("../app/src/main/assets/")
+        rename('server_old-debug.apk', 'scrcpy-server.jar')
+    }
+
+    afterEvaluate {
+        packageRelease.finalizedBy(copyRelease)
+    }
+
+    afterEvaluate {
+        packageDebug.finalizedBy(copyDebug)
+    }
+}
+
+
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    testImplementation 'junit:junit:4.12'
+}
+
+

@@ -15,7 +15,7 @@ public class TermuxAPIApplication extends Application {
         Logger.setLogLevel(this, Logger.MAX_LOG_LEVEL);
         ResultReturner.setContext(this);
         // Set log config for the app
-//        setLogConfig(getApplicationContext(), true);
+        setLogConfig(getApplicationContext(), true);
         Logger.logDebug("Starting Application");
         SocketListener.createSocketListener(this);
     }

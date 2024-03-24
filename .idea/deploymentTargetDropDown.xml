@@ -3,6 +3,31 @@
   <component name="deploymentTargetDropDown">
     <value>
       <entry key="app">
+        <State>
+          <runningDeviceTargetSelectedWithDropDown>
+            <Target>
+              <type value="RUNNING_DEVICE_TARGET" />
+              <deviceKey>
+                <Key>
+                  <type value="SERIAL_NUMBER" />
+                  <value value="9TM9K23615007157" />
+                </Key>
+              </deviceKey>
+            </Target>
+          </runningDeviceTargetSelectedWithDropDown>
+          <timeTargetWasSelectedWithDropDown value="2024-03-24T07:51:08.046053800Z" />
+        </State>
+      </entry>
+      <entry key="server">
+        <State />
+      </entry>
+      <entry key="server2">
+        <State />
+      </entry>
+      <entry key="server_new">
+        <State />
+      </entry>
+      <entry key="server_old">
         <State />
       </entry>
     </value>

@@ -43,18 +43,18 @@ class MainVM(ctx: Application) : AndroidViewModel(ctx) {
         }
     }
 
-    private fun startAdbDevices() {
-        refreshJob = viewModelScope.launch {
-            withContext(Dispatchers.IO) {
-                while (true) {
-                    val res = ADBUtils.exec("adb_termux", "devices")
+    suspend fun startAdbDevices() {
+        withContext(Dispatchers.IO) {
+            while (true) {
+                if (adbServerStatus.value == STATUS_TURN_ON) {
+                    val res = ADBUtils.exec("adb.bin-arm", "devices")
                     val list = res.split("\n").toList()
                     adbList.clear()
                     if (list.size > 1) {
                         adbList.addAll(list.subList(1, list.size - 1))
                     }
-                    delay(1000)
                 }
+                delay(2_000)
             }
         }
     }
@@ -72,7 +72,14 @@ class MainVM(ctx: Application) : AndroidViewModel(ctx) {
             withContext(Dispatchers.IO) {
                 ADBUtils.exec("adb_termux", "start-server")
                 adbServerStatus.value = STATUS_TURN_ON
-                startAdbDevices()
+            }
+        }
+    }
+
+    fun connect(ip: String, port: String) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                ADBUtils.exec("adb.bin-arm", "connect", "$ip:$port")
             }
         }
     }

@@ -1,5 +1,9 @@
 package com.suda.androidscrcpy
 
+import android.app.ActivityOptions
+import android.content.Intent
+import android.hardware.display.DisplayManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -10,11 +14,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import com.suda.androidscrcpy.home.Home
 import com.suda.androidscrcpy.ui.theme.AndroidScrcpyTheme
 
@@ -26,6 +33,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+
 
         setContent {
             AndroidScrcpyTheme {
@@ -40,6 +49,11 @@ class MainActivity : ComponentActivity() {
                     }
                     if (adbInit) {
                         Home(mainVM)
+                        LaunchedEffect(key1 = null) {
+                            repeatOnLifecycle(Lifecycle.State.RESUMED){
+                                mainVM.startAdbDevices()
+                            }
+                        }
                     } else {
                         Greeting("初始化中")
                     }

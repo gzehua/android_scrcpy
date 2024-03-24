@@ -27,6 +27,7 @@ https://github.com/tytydraco/LADB
 
 https://github.com/Genymobile/scrcpy
 
+https://github.com/updeshxp/scrcpy-android
 
 ## BSD
 
