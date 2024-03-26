@@ -1,81 +1,114 @@
 package com.genymobile.scrcpy;
 
+import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public final class Server {
 
     private static String ip = null;
+    public static final String SERVER_PATH;
+
+    static {
+        String[] classPaths = System.getProperty("java.class.path").split(File.pathSeparator);
+        // By convention, scrcpy is always executed with the absolute path of scrcpy-server.jar as the first item in the classpath
+        SERVER_PATH = classPaths[0];
+    }
+
+    private static class Completion {
+        private int running;
+        private boolean fatalError;
+
+        Completion(int running) {
+            this.running = running;
+        }
+
+        synchronized void addCompleted(boolean fatalError) {
+            --running;
+            if (fatalError) {
+                this.fatalError = true;
+            }
+            if (running == 0 || this.fatalError) {
+                notify();
+            }
+        }
+
+        synchronized void await() {
+            try {
+                while (running > 0 && !fatalError) {
+                    wait();
+                }
+            } catch (InterruptedException e) {
+                // ignore
+            }
+        }
+    }
+
 
     private Server() {
         // not instantiable
     }
 
-    private static void scrcpy(Options options) throws IOException {
-        final Device device = new Device(options);
-        try (DesktopConnection connection = DesktopConnection.open(ip)) {
-            SurfaceEncoder screenEncoder = new SurfaceEncoder(options.getBitRate());
+    private static void scrcpy(Options options) throws IOException, ConfigurationException {
+        CleanUp cleanUp = null;
+        Thread initThread = null;
 
-            // asynchronous
-            startEventController(device, connection);
+//        if (options.getCleanup()) {
+//            cleanUp = CleanUp.configure(options.getDisplayId());
+//            initThread = startInitThread(options, cleanUp);
+//        }
+        boolean control = options.getControl();
+        boolean video = options.getVideo();
+        final Device device = new Device(options);
+        List<AsyncProcessor> asyncProcessors = new ArrayList<>();
+        try (DesktopConnection connection = DesktopConnection.open(ip)) {
+
+            if (video){
+                SurfaceEncoder screenEncoder = new SurfaceEncoder(options.getVideoBitRate(),device,connection.getVideoOutput());
+                asyncProcessors.add(screenEncoder);
+            }
+
+            if (control) {
+                ControlChannel controlChannel = connection.getControlChannel();
+                Controller controller = new Controller(device, controlChannel, cleanUp, options.getClipboardAutosync(), options.getPowerOn());
+                device.setClipboardListener(text -> {
+//                    DeviceMessage msg = DeviceMessage.createClipboard(text);
+//                    controller.getSender().send(msg);
+                });
+                asyncProcessors.add(controller);
+            }
+
+            Completion completion = new Completion(asyncProcessors.size());
+            for (AsyncProcessor asyncProcessor : asyncProcessors) {
+                asyncProcessor.start((fatalError) -> {
+                    completion.addCompleted(fatalError);
+                });
+            }
+
+            completion.await();
+        } finally {
+            if (initThread != null) {
+                initThread.interrupt();
+            }
+            for (AsyncProcessor asyncProcessor : asyncProcessors) {
+                asyncProcessor.stop();
+            }
 
             try {
-                // synchronous
-                screenEncoder.streamScreen(device, connection.getOutputStream());
-            } catch (IOException e) {
-                e.printStackTrace();
-                // this is expected on close
-                Ln.d("Screen streaming stopped");
-
-
-            }
-        }
-    }
-
-    private static void startEventController(final Device device, final DesktopConnection connection) {
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    new EventController(device, connection).control();
-                } catch (IOException e) {
-                    // this is expected on close
-                    Ln.d("Event controller stopped");
+                if (initThread != null) {
+                    initThread.join();
                 }
+                for (AsyncProcessor asyncProcessor : asyncProcessors) {
+                    asyncProcessor.join();
+                }
+            } catch (InterruptedException e) {
+                // ignore
             }
-        }).start();
+        }
+
     }
 
-    @SuppressWarnings("checkstyle:MagicNumber")
-    private static Options createOptions(String... args) {
-        Options options = new Options();
-
-        if (args.length < 1) {
-            return options;
-        }
-        ip = String.valueOf(args[0]);
-
-
-        if (args.length < 2) {
-            return options;
-        }
-        int maxSize = Integer.parseInt(args[1]) & ~7; // multiple of 8
-        options.setMaxSize(maxSize);
-
-        if (args.length < 3) {
-            return options;
-        }
-        int bitRate = Integer.parseInt(args[2]);
-        options.setBitRate(bitRate);
-
-        if (args.length < 4) {
-            return options;
-        }
-        // use "adb forward" instead of "adb tunnel"? (so the server must listen)
-        boolean tunnelForward = Boolean.parseBoolean(args[3]);
-        options.setTunnelForward(tunnelForward);
-
-        return options;
-    }
 
     public static void main(String... args) throws Exception {
         Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
@@ -94,7 +127,7 @@ public final class Server {
             e1.printStackTrace();
         }
 
-        Options options = createOptions(args);
+        Options options = Options.parse(args);
         scrcpy(options);
     }
 }

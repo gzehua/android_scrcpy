@@ -31,6 +31,7 @@ fun Home(mainVM: MainVM) {
     var showDialog by remember { mutableStateOf(false) }
     var ip by remember { mutableStateOf("192.168.31.138") }
     var port by remember { mutableStateOf("5555") }
+    var code by remember { mutableStateOf("") }
 
     if (showDialog) {
         Dialog(
@@ -39,15 +40,30 @@ fun Home(mainVM: MainVM) {
             Card {
                 Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = "IP", Modifier.width(60.dp))
-                        TextField(value = ip, onValueChange = { ip = it })
+                        Text(text = "IP", Modifier.width(100.dp))
+                        TextField(value = ip, singleLine = true,
+                            placeholder = {
+                                Text(text = "必填")
+                            }, onValueChange = { ip = it })
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = "PORT", Modifier.width(60.dp))
-                        TextField(value = port, onValueChange = { port = it })
+                        Text(text = "PORT", Modifier.width(100.dp))
+                        TextField(value = port, singleLine = true,
+                            placeholder = {
+                                Text(text = "必填")
+                            }, onValueChange = { port = it })
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = "PAIR CODE", Modifier.width(100.dp))
+                        TextField(value = code,
+                            singleLine = true,
+                            placeholder = {
+                                Text(text = "可空")
+                            },
+                            onValueChange = { code = it })
                     }
                     Button(onClick = {
-                        mainVM.connect(ip, port)
+                        mainVM.connect(ip, port, code)
                         showDialog = false
                     }) {
                         Text(text = "添加")
@@ -57,30 +73,42 @@ fun Home(mainVM: MainVM) {
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        Button(onClick = {
-            showDialog = true
-        }) {
-            Text(text = "添加设备")
-        }
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxSize()
+    ) {
+
         Box(modifier = Modifier.fillMaxSize()) {
             val adbs = mainVM.adbList.toList()
-            LazyColumn {
-                items(adbs.size) {
-                    val ctx = LocalView.current.context
-
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        Text(text = adbs[it], modifier = Modifier.align(Alignment.CenterStart))
-                        Button(onClick = {
-                            ctx.startActivity(Intent(ctx, ScrcpyActivity::class.java).apply {
-                                putExtra("device", adbs[it].split("\t")[0])
-                                putExtra("withNav", true)
-                            })
-                        }, modifier = Modifier.align(Alignment.CenterEnd)) {
-                            Text(text = "连接")
+            if (adbs.isEmpty()) {
+                Text(
+                    modifier = Modifier.align(Alignment.Center),
+                    text = "请通过USB插入设备，或者WIFI配对后连接"
+                )
+            } else {
+                LazyColumn {
+                    items(adbs.size) {
+                        val ctx = LocalView.current.context
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            Text(text = adbs[it], modifier = Modifier.align(Alignment.CenterStart))
+                            Button(onClick = {
+                                ctx.startActivity(Intent(ctx, ScrcpyActivity::class.java).apply {
+                                    putExtra("device", adbs[it].split("\t")[0])
+                                    putExtra("withNav", true)
+                                })
+                            }, modifier = Modifier.align(Alignment.CenterEnd)) {
+                                Text(text = "连接")
+                            }
                         }
+
                     }
                 }
+            }
+
+            Button(onClick = {
+                showDialog = true
+            }, modifier = Modifier.align(Alignment.BottomCenter)) {
+                Text(text = "添加WIFI设备")
             }
         }
     }

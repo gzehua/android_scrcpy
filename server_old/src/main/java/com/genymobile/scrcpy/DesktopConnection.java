@@ -5,23 +5,23 @@ import android.net.LocalSocketAddress;
 import android.util.Log;
 
 import java.io.Closeable;
-import java.io.EOFException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 
 public final class DesktopConnection implements Closeable {
 
 
-    private static LocalSocket socket = null;
-    private OutputStream outputStream;
-    private InputStream inputStream;
+    private LocalSocket videoSocket;
+    private OutputStream videoOutput;
 
-    private DesktopConnection(LocalSocket socket) throws IOException {
-        this.socket = socket;
+    private final LocalSocket controlSocket;
+    private final ControlChannel controlChannel;
 
-        inputStream = socket.getInputStream();
-        outputStream = socket.getOutputStream();
+    private DesktopConnection(LocalSocket videoSocket, LocalSocket controlSocket) throws IOException {
+        this.videoSocket = videoSocket;
+        this.controlSocket = controlSocket;
+        videoOutput = videoSocket.getOutputStream();
+        controlChannel = controlSocket != null ? new ControlChannel(controlSocket) : null;
     }
 
     private static LocalSocket connect(String abstractName) throws IOException {
@@ -30,54 +30,30 @@ public final class DesktopConnection implements Closeable {
         return localSocket;
     }
 
-
-    private static LocalSocket listenAndAccept() throws IOException {
-        System.out.println("listenAndAccept");
-        LocalSocket sock = null;
-        try {
-            sock = connect("scrcpy");
-        } catch (Exception e){
-
-        }
-        return sock;
-    }
-
     public static DesktopConnection open(String ip) throws IOException {
-        socket = listenAndAccept();
-        DesktopConnection connection = new DesktopConnection(socket);
+        LocalSocket videoSocket = connect("scrcpy");
+        LocalSocket controlSocket = connect("scrcpy");
+        DesktopConnection connection = new DesktopConnection(videoSocket, controlSocket);
         Log.d("DroidConnection", "open");
         return connection;
     }
 
     public void close() throws IOException {
-        socket.shutdownInput();
-        socket.shutdownOutput();
-        socket.close();
+        videoSocket.shutdownInput();
+        videoSocket.shutdownOutput();
+        videoSocket.close();
+
+        controlSocket.shutdownInput();
+        controlSocket.shutdownOutput();
+        controlSocket.close();
     }
 
-    public OutputStream getOutputStream() {
-        return outputStream;
+    public OutputStream getVideoOutput() {
+        return videoOutput;
     }
 
-
-    public int[] NewreceiveControlEvent() throws IOException {
-
-        byte[] buf = new byte[16];
-        int n = inputStream.read(buf, 0, 16);
-        if (n == -1) {
-            throw new EOFException("Event controller socket closed");
-        }
-
-
-        final int[] array = new int[buf.length / 4];
-        for (int i = 0; i < array.length; i++)
-            array[i] = (((int) (buf[i * 4]) << 24) & 0xFF000000) |
-                    (((int) (buf[i * 4 + 1]) << 16) & 0xFF0000) |
-                    (((int) (buf[i * 4 + 2]) << 8) & 0xFF00) |
-                    ((int) (buf[i * 4 + 3]) & 0xFF);
-        return array;
-
-
+    public ControlChannel getControlChannel() {
+        return controlChannel;
     }
 
 }

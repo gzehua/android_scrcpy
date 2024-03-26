@@ -61,6 +61,12 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        //杀死进程防止termux_api 起不来
+        android.os.Process.killProcess(android.os.Process.myPid())
+    }
 }
 
 @Composable

@@ -17,7 +17,9 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class SurfaceEncoder implements Device.RotationListener {
+public class SurfaceEncoder implements Device.RotationListener,AsyncProcessor {
+
+    private Thread thread;
 
     private static final int DEFAULT_FRAME_RATE = 60; // fps
     private static final int DEFAULT_I_FRAME_INTERVAL = 10; // seconds
@@ -32,23 +34,31 @@ public class SurfaceEncoder implements Device.RotationListener {
     private int bitRate;
     private int frameRate;
     private int iFrameInterval;
+    private Device device;
+    private OutputStream outputStream;
 
-    public SurfaceEncoder(int bitRate, int frameRate, int iFrameInterval) {
+    SurfaceEncoder(int bitRate, int frameRate, int iFrameInterval) {
         this.bitRate = bitRate;
         this.frameRate = frameRate;
         this.iFrameInterval = iFrameInterval;
     }
 
-    public SurfaceEncoder(int bitRate) {
+    public SurfaceEncoder(int bitRate,Device device,OutputStream outputStream) {
         this(bitRate, DEFAULT_FRAME_RATE, DEFAULT_I_FRAME_INTERVAL);
+        this.device = device;
+        this.outputStream = outputStream;
     }
 	
-    public void streamScreen(Device device, OutputStream outputStream) throws IOException {
+    private void streamScreen(Device device, OutputStream outputStream) throws IOException {
         MediaFormat format = createFormat(bitRate, frameRate, iFrameInterval);
         device.setRotationListener(this);
         boolean alive;
         try {
             do {
+
+                Size size = device.getScreenInfo().getVideoSize();
+                Ln.i("capture size"+size.toString());
+
                 MediaCodec codec = createCodec();
                 //todo 适配
                 IBinder display = null;
@@ -57,7 +67,7 @@ public class SurfaceEncoder implements Device.RotationListener {
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
-                Rect deviceRect = device.getScreenInfo().getDeviceSize().toRect();
+                Rect deviceRect = device.getScreenInfo().getContentRect();
                 Rect videoRect = device.getScreenInfo().getVideoSize().toRect();
                 setSize(format, videoRect.width(), videoRect.height());
                 configure(codec, format);
@@ -194,4 +204,32 @@ public class SurfaceEncoder implements Device.RotationListener {
         return format;
     }
 
+    @Override
+    public void start(TerminationListener listener) {
+        thread = new Thread(() -> {
+            try {
+               streamScreen(device,outputStream);
+            } catch (IOException e) {
+                Ln.e("Controller error", e);
+            } finally {
+                Ln.d("Controller stopped");
+                listener.onTerminated(true);
+            }
+        }, "video");
+        thread.start();
+    }
+
+    @Override
+    public void stop() {
+        if (thread != null) {
+            thread.interrupt();
+        }
+    }
+
+    @Override
+    public void join() throws InterruptedException {
+        if (thread != null) {
+            thread.join();
+        }
+    }
 }

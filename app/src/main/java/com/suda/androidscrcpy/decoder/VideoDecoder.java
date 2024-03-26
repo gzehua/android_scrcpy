@@ -59,7 +59,12 @@ public class VideoDecoder {
         private void configure(Surface surface, int width, int height, ByteBuffer csd0, ByteBuffer csd1) {
             if (mIsConfigured.get()) {
                 mIsConfigured.set(false);
-                mCodec.stop();
+
+                try {
+                    mCodec.stop();
+                }catch (Exception e){
+                    e.printStackTrace();
+                }
 
             }
             MediaFormat format = MediaFormat.createVideoFormat("video/avc", width, height);

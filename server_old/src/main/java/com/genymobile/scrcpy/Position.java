@@ -1,7 +1,5 @@
 package com.genymobile.scrcpy;
 
-import android.graphics.Point;
-
 import java.util.Objects;
 
 public class Position {
@@ -25,18 +23,18 @@ public class Position {
         return screenSize;
     }
 
-//    public Position rotate(int rotation) {
-//        switch (rotation) {
-//            case 1:
-//                return new Position(new Point(screenSize.getHeight() - point.getY(), point.getX()), screenSize.rotate());
-//            case 2:
-//                return new Position(new Point(screenSize.getWidth() - point.getX(), screenSize.getHeight() - point.getY()), screenSize);
-//            case 3:
-//                return new Position(new Point(point.getY(), screenSize.getWidth() - point.getX()), screenSize.rotate());
-//            default:
-//                return this;
-//        }
-//    }
+    public Position rotate(int rotation) {
+        switch (rotation) {
+            case 1:
+                return new Position(new Point(screenSize.getHeight() - point.getY(), point.getX()), screenSize.rotate());
+            case 2:
+                return new Position(new Point(screenSize.getWidth() - point.getX(), screenSize.getHeight() - point.getY()), screenSize);
+            case 3:
+                return new Position(new Point(point.getY(), screenSize.getWidth() - point.getX()), screenSize.rotate());
+            default:
+                return this;
+        }
+    }
 
     @Override
     public boolean equals(Object o) {

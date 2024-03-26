@@ -76,12 +76,21 @@ class MainVM(ctx: Application) : AndroidViewModel(ctx) {
         }
     }
 
-    fun connect(ip: String, port: String) {
+    fun connect(ip: String, port: String, code: String) {
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                ADBUtils.exec("adb.bin-arm", "connect", "$ip:$port")
+                if (code.isNotEmpty()) {
+                    ADBUtils.pair("adb.bin-arm", "$ip:$port", code)
+                } else {
+                    ADBUtils.exec("adb.bin-arm", "connect", "$ip:$port")
+                }
             }
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        ADBUtils.exec("adb_termux", "kill-server")
     }
 
     fun stopAdbServer() {
@@ -96,7 +105,7 @@ class MainVM(ctx: Application) : AndroidViewModel(ctx) {
             refreshJob?.cancelAndJoin()
 
             withContext(Dispatchers.IO) {
-                ADBUtils.exec("adb_termux", "stop-server")
+                ADBUtils.exec("adb_termux", "kill-server")
                 adbServerStatus.value = STATUS_TURN_OFF
             }
         }

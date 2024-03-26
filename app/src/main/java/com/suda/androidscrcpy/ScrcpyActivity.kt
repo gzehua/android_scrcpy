@@ -1,15 +1,20 @@
 package com.suda.androidscrcpy
 
 import android.annotation.SuppressLint
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
 import android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+import android.hardware.usb.UsbDevice
+import android.hardware.usb.UsbManager
+import android.hardware.usb.UsbManager.ACTION_USB_DEVICE_DETACHED
 import android.os.Bundle
-import android.view.MotionEvent
 import android.view.Surface
 import android.view.SurfaceView
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
 import android.widget.Toast
 import android.widget.ViewSwitcher.KEEP_SCREEN_ON
 import androidx.activity.viewModels
@@ -19,16 +24,21 @@ import com.suda.androidscrcpy.utils.ADBUtils
 
 class ScrcpyActivity : androidx.activity.ComponentActivity() {
 
+    private val TIME_INTERVAL: Long = 2000 // 定义两次返回间的时间间隔
 
+    private val mSurfaceView: SurfaceView by lazy {
+        findViewById(R.id.decoder_surface)
+    }
+    private val container: View by lazy {
+        findViewById(R.id.container)
+    }
 
-    private val scrcpyVM: ScrcpyVM by viewModels()
-    var surfaceView: SurfaceView? = null
-    var surface: Surface? = null
+    private val mScrcpyVM: ScrcpyVM by viewModels()
+    var mSurface: Surface? = null
 
-    val TIME_INTERVAL: Long = 2000 // 定义两次返回间的时间间隔
 
     var mBackPressed: Long = 0
-    private val device: String? by lazy {
+    private val mDevice: String? by lazy {
         intent.getStringExtra("device")
     }
 
@@ -36,18 +46,28 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
         intent.getBooleanExtra("withNav", true)
     }
 
+    private val mUsbUnPlugReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val device = intent!!.getParcelableExtra(UsbManager.EXTRA_DEVICE) as UsbDevice?
+            device?.run {
+                //todo 判断机型
+                finish()
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        mScrcpyVM.init(mDevice!!)
 
         setUpUi(withNav)
         window.addFlags(KEEP_SCREEN_ON)
 
-        scrcpyVM.init(device!!)
-        scrcpyVM.rotationLiveData.observe(this){
-            if (it == SCREEN_ORIENTATION_PORTRAIT){
+        registerReceiver(mUsbUnPlugReceiver, IntentFilter(ACTION_USB_DEVICE_DETACHED))
+        mScrcpyVM.rotationLiveData.observe(this) {
+            if (it == SCREEN_ORIENTATION_PORTRAIT) {
                 requestedOrientation = SCREEN_ORIENTATION_PORTRAIT
-            }else if (it == SCREEN_ORIENTATION_LANDSCAPE){
+            } else if (it == SCREEN_ORIENTATION_LANDSCAPE) {
                 requestedOrientation = SCREEN_ORIENTATION_LANDSCAPE
             }
         }
@@ -64,38 +84,18 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
                 or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                 or View.SYSTEM_UI_FLAG_FULLSCREEN
                 or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY)
-        surfaceView = findViewById<View>(R.id.decoder_surface) as SurfaceView
-        surfaceView?.post {
-            surfaceView?.run {
-                if (decorView.width * (scrcpyVM.screenHeight * 1f / scrcpyVM.screenWidth) < height) {
-                    //垂直居中
-                    this.updateLayoutParams<ViewGroup.LayoutParams> {
-                        width = decorView.width
-                        height =
-                            (decorView.width * (scrcpyVM.screenHeight * 1f / scrcpyVM.screenWidth)).toInt()
-                    }
-                } else {
-                    //水平居中
-                    this.updateLayoutParams<ViewGroup.LayoutParams> {
-                        height = decorView.height
-                        width =
-                            (decorView.height * (scrcpyVM.screenWidth * 1f / scrcpyVM.screenHeight)).toInt()
-                    }
-                }
-            }
-        }
-
-        surface = surfaceView!!.holder.surface
-        scrcpyVM.surface = surface
+        resetSurface()
+        mSurface = mSurfaceView.holder.surface
+        mScrcpyVM.mSurface = mSurface
         if (withNav) {
-            val backButton = findViewById<View>(R.id.back_button) as Button
-            val homeButton = findViewById<View>(R.id.home_button) as Button
-            val appswitchButton = findViewById<View>(R.id.appswitch_button) as Button
+            val backButton = findViewById<View>(R.id.back_button)
+            val homeButton = findViewById<View>(R.id.home_button)
+            val appswitchButton = findViewById<View>(R.id.appswitch_button)
             backButton.setOnClickListener {
                 ADBUtils.exec(
                     "adb.bin-arm",
                     "-s",
-                    device.toString(),
+                    mDevice.toString(),
                     "shell", "input", "keyevent", "4"
                 )
             }
@@ -103,7 +103,7 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
                 ADBUtils.exec(
                     "adb.bin-arm",
                     "-s",
-                    device.toString(),
+                    mDevice.toString(),
                     "shell",
                     "input",
                     "keyevent",
@@ -114,7 +114,7 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
                 ADBUtils.exec(
                     "adb.bin-arm",
                     "-s",
-                    device.toString(),
+                    mDevice.toString(),
                     "shell",
                     "input",
                     "keyevent",
@@ -122,36 +122,58 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
                 )
             }
         }
-        surfaceView!!.setOnTouchListener { _, event ->
-            touchevent(
-                event,
-                scrcpyVM.screenWidth,
-                scrcpyVM.screenHeight
-            )
+        mSurfaceView.setOnTouchListener { _, event ->
+            mScrcpyVM.offerTouchEvent(event, mSurfaceView.width, mSurfaceView.height)
+            true
         }
     }
 
-
-    private fun touchevent(touch_event: MotionEvent, videoW: Int, videoH: Int): Boolean {
-        val buf = intArrayOf(
-            touch_event.action,
-            touch_event.buttonState,
-            touch_event.x.toInt() * videoW / surfaceView!!.width,
-            touch_event.y.toInt() * videoH / surfaceView!!.height
-        )
-        val array =
-            ByteArray(buf.size * 4) // https://stackoverflow.com/questions/2183240/java-integer-to-byte-array
-        for (j in buf.indices) {
-            val c = buf[j]
-            array[j * 4] = (c and -0x1000000 shr 24).toByte()
-            array[j * 4 + 1] = (c and 0xFF0000 shr 16).toByte()
-            array[j * 4 + 2] = (c and 0xFF00 shr 8).toByte()
-            array[j * 4 + 3] = (c and 0xFF).toByte()
+    private fun resetSurface() {
+        mSurfaceView?.post {
+            mSurfaceView?.run {
+                val screenWidth = mScrcpyVM.mScreenWidth
+                val screenHeight = mScrcpyVM.mScreenHeight
+                val decorView = container
+                if (decorView.width * (screenHeight * 1f / screenWidth) < height) {
+                    //垂直居中
+                    this.updateLayoutParams<ViewGroup.LayoutParams> {
+                        width = container.width
+                        height =
+                            (decorView.width * (screenHeight * 1f / screenWidth)).toInt()
+                    }
+                } else {
+                    //水平居中
+                    this.updateLayoutParams<ViewGroup.LayoutParams> {
+                        height = decorView.height
+                        width =
+                            (decorView.height * (screenWidth * 1f / screenHeight)).toInt()
+                    }
+                }
+            }
         }
-        scrcpyVM.mActionQueue.offer(array)
-        return true
+
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        unregisterReceiver(mUsbUnPlugReceiver)
+    }
+
+    var resumeFromPause = false
+
+    override fun onStop() {
+        super.onStop()
+        resumeFromPause = true
+        mScrcpyVM.pause()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (resumeFromPause) {
+            mScrcpyVM.resume(mSurfaceView.holder.surface)
+        }
+        resumeFromPause = false
+    }
 
     override fun onBackPressed() {
         if (mBackPressed + TIME_INTERVAL > System.currentTimeMillis()) {
