@@ -19,5 +19,7 @@ public interface ControlEventMessage {
     public static final int TYPE_UHID_INPUT = 13;
     public static final int TYPE_OPEN_HARD_KEYBOARD_SETTINGS = 14;
 
+    //安卓stop后surface销毁，需要重新推
+    public static final int TYPE_RELOAD = 15;
     byte[] makeEvent();
 }

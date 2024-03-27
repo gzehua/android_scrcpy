@@ -2,25 +2,25 @@ package com.suda.androidscrcpy
 
 import android.app.Application
 import android.content.pm.ActivityInfo
-import android.hardware.SensorManager
 import android.view.MotionEvent
 import android.view.Surface
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import com.suda.androidscrcpy.control.ControlEventMessage
+import com.suda.androidscrcpy.control.ReloadEventMessage
 import com.suda.androidscrcpy.control.TouchEventMessage
 import com.suda.androidscrcpy.decoder.VideoDecoder
-import com.suda.androidscrcpy.model.ByteUtils
 import com.suda.androidscrcpy.model.MediaPacket
 import com.suda.androidscrcpy.model.VideoPacket
 import com.suda.androidscrcpy.utils.ADBUtils
+import com.termux.shared.logger.Logger
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.IOException
-import java.io.InputStream
 import java.net.ServerSocket
 import java.net.Socket
+import java.nio.ByteBuffer
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -29,6 +29,7 @@ class ScrcpyVM(app: Application) : AndroidViewModel(app) {
     private val mUpdateAvailable = AtomicBoolean(false)
     private val mLetServerRunning = AtomicBoolean(true)
     private var mVideoDecoder: VideoDecoder? = null
+    private var isReadHeader = false
 
     private val _rotationLiveData = MutableLiveData<Int>()
     val rotationLiveData: LiveData<Int> = _rotationLiveData
@@ -55,12 +56,17 @@ class ScrcpyVM(app: Application) : AndroidViewModel(app) {
         }
 
     fun pause() {
+        mVideoDecoder?.stop()
+        mVideoDecoder = null
         mPause.set(true)
     }
 
     fun resume(surface: Surface) {
         mSurface = surface
         mPause.set(false)
+        mVideoDecoder = VideoDecoder()
+        mVideoDecoder?.start()
+        mActionQueue.offer(ReloadEventMessage())
     }
 
     fun init(device: String) {
@@ -179,10 +185,16 @@ class ScrcpyVM(app: Application) : AndroidViewModel(app) {
             dataInputStream = DataInputStream(socket.getInputStream())
             dataOutputStream = DataOutputStream(controlSocket.getOutputStream())
 
+            Thread {
+                while (mLetServerRunning.get()) {
+                    handleSendEvent(dataOutputStream)
+                }
+            }.start()
+
+
 
             while (mLetServerRunning.get()) {
                 try {
-                    handleSendEvent(dataOutputStream)
                     decodeVideo(dataInputStream)
                 } catch (e: IOException) {
                 } catch (e2: Exception) {
@@ -238,15 +250,38 @@ class ScrcpyVM(app: Application) : AndroidViewModel(app) {
         }
     }
 
+
     @Throws
     private fun decodeVideo(dataInputStream: DataInputStream) {
         if (dataInputStream.available() > 0) {
-            val packetSize = ByteArray(4)
-            dataInputStream.readFully(packetSize, 0, 4)
-            val size = ByteUtils.bytesToInt(packetSize)
+
+            if (!isReadHeader) {
+                //读取宽高
+                val headerBytes = ByteArray(12)
+                dataInputStream.readFully(headerBytes, 0, 12)
+                val byteBuffer = ByteBuffer.allocate(12)
+                byteBuffer.put(headerBytes)
+                byteBuffer.flip()
+                val codecId = byteBuffer.getInt()
+                val width = byteBuffer.getInt()
+                val height = byteBuffer.getInt()
+                Logger.logDebug("width=$width,height=$height,codecId=$codecId")
+            }
+            isReadHeader = true
+
+
+            val frameMetaBytes = ByteArray(12)
+            dataInputStream.readFully(frameMetaBytes, 0, 12)
+            val byteBuffer = ByteBuffer.allocate(12)
+            byteBuffer.put(frameMetaBytes)
+            byteBuffer.flip()
+            val ptsAndFlags = byteBuffer.getLong()
+            val size = byteBuffer.getInt()
+
+
             val packet = ByteArray(size)
             dataInputStream.readFully(packet, 0, size)
-            val videoPacket = VideoPacket.fromArray(packet)
+            val videoPacket = VideoPacket.fromArray(packet, ptsAndFlags)
             if (videoPacket.type == MediaPacket.Type.VIDEO) {
                 val data = videoPacket.data
                 if (videoPacket.flag == VideoPacket.Flag.CONFIG || mUpdateAvailable.get()) {
@@ -254,20 +289,17 @@ class ScrcpyVM(app: Application) : AndroidViewModel(app) {
                         streamSettings = VideoPacket.getStreamSettings(data)
                         loadNewRotation(false)
                         if (!mFirstTime) {
-                            while (!mUpdateAvailable.get()) {
-                                // Waiting for new surface
-                                try {
-                                    Thread.sleep(100)
-                                } catch (e: InterruptedException) {
-                                    e.printStackTrace()
-                                }
+                            try {
+                                Thread.sleep(200)
+                            } catch (e: InterruptedException) {
+                                e.printStackTrace()
                             }
                         }
 
                     }
                     mUpdateAvailable.set(false)
                     mFirstTime = false
-                    mVideoDecoder!!.configure(
+                    mVideoDecoder?.configure(
                         mSurface,
                         mScreenWidth,
                         mScreenHeight,
@@ -278,7 +310,7 @@ class ScrcpyVM(app: Application) : AndroidViewModel(app) {
                     // need close stream
                 } else {
                     if (!mPause.get()) {
-                        mVideoDecoder!!.decodeSample(
+                        mVideoDecoder?.decodeSample(
                             data,
                             0,
                             data.size,

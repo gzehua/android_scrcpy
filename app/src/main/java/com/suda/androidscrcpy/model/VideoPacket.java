@@ -9,6 +9,10 @@ import java.nio.ByteBuffer;
 
 public class VideoPacket extends MediaPacket {
 
+
+    private static final long PACKET_FLAG_CONFIG = 1L << 63;
+    private static final long PACKET_FLAG_KEY_FRAME = 1L << 62;
+
     public Flag flag;
     public long presentationTimeStamp;
     public byte[] data;
@@ -24,58 +28,20 @@ public class VideoPacket extends MediaPacket {
     }
 
     // create packet from byte array
-    public static VideoPacket fromArray(byte[] values) {
+    public static VideoPacket fromArray(byte[] values, long ptsAndFlags) {
         VideoPacket videoPacket = new VideoPacket();
-
-        // should be a type value - 1 byte
-        byte typeValue = values[0];
-        // should be a flag value - 1 byte
-        byte flagValue = values[1];
-
-        videoPacket.type = Type.getType(typeValue);
-        videoPacket.flag = Flag.getFlag(flagValue);
-
-        // should be 8 bytes for timestamp
-        byte[] timeStamp = new byte[8];
-        System.arraycopy(values, 2, timeStamp, 0, 8);
-        videoPacket.presentationTimeStamp = ByteUtils.bytesToLong(timeStamp);
-
-        // all other bytes is data
-        int dataLength = values.length - 10;
-        byte[] data = new byte[dataLength];
-        System.arraycopy(values, 10, data, 0, dataLength);
-        videoPacket.data = data;
-
+        videoPacket.type = Type.VIDEO;
+        if (ptsAndFlags == PACKET_FLAG_CONFIG) {
+            videoPacket.flag = Flag.CONFIG;
+        } else if ((ptsAndFlags & PACKET_FLAG_KEY_FRAME) == PACKET_FLAG_KEY_FRAME) {
+            videoPacket.flag = Flag.KEY_FRAME;
+            videoPacket.presentationTimeStamp = ptsAndFlags & ~PACKET_FLAG_KEY_FRAME;
+        } else {
+            videoPacket.flag = Flag.FRAME;
+            videoPacket.presentationTimeStamp = ptsAndFlags;
+        }
+        videoPacket.data = values;
         return videoPacket;
-    }
-
-    // create byte array
-    public static byte[] toArray(Type type, Flag flag, long presentationTimeStamp, byte[] data) {
-
-        // should be 4 bytes for packet size
-        byte[] bytes = ByteUtils.intToBytes(10 + data.length);
-
-        int packetSize = 14 + data.length; // 4 - inner packet size 1 - type + 1 - flag + 8 - timeStamp + data.length
-        byte[] values = new byte[packetSize];
-
-        System.arraycopy(bytes, 0, values, 0, 4);
-
-        // set type value
-        values[4] = type.getType();
-        // set flag value
-        values[5] = flag.getFlag();
-        // set timeStamp
-        byte[] longToBytes = ByteUtils.longToBytes(presentationTimeStamp);
-        System.arraycopy(longToBytes, 0, values, 6, longToBytes.length);
-
-        // set data array
-        System.arraycopy(data, 0, values, 14, data.length);
-        return values;
-    }
-
-    // should call on inner packet
-    public static boolean isVideoPacket(byte[] values) {
-        return values[0] == Type.VIDEO.getType();
     }
 
     public static StreamSettings getStreamSettings(byte[] buffer) {
@@ -111,9 +77,6 @@ public class VideoPacket extends MediaPacket {
         return streamSettings;
     }
 
-    public byte[] toByteArray() {
-        return toArray(type, flag, presentationTimeStamp, data);
-    }
 
     public enum Flag {
 

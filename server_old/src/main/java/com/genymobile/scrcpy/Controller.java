@@ -32,6 +32,7 @@ public class Controller implements AsyncProcessor {
 
     private final Device device;
     private final ControlChannel controlChannel;
+    private final SurfaceCapture surfaceCapture;
     private final CleanUp cleanUp;
     private final DeviceMessageSender sender;
     private final boolean clipboardAutosync;
@@ -46,9 +47,10 @@ public class Controller implements AsyncProcessor {
 
     private boolean keepPowerModeOff;
 
-    public Controller(Device device, ControlChannel controlChannel, CleanUp cleanUp, boolean clipboardAutosync, boolean powerOn) {
+    public Controller(Device device, ControlChannel controlChannel,SurfaceCapture surfaceCapture, CleanUp cleanUp, boolean clipboardAutosync, boolean powerOn) {
         this.device = device;
         this.controlChannel = controlChannel;
+        this.surfaceCapture = surfaceCapture;
         this.cleanUp = cleanUp;
         this.clipboardAutosync = clipboardAutosync;
         this.powerOn = powerOn;
@@ -212,6 +214,11 @@ public class Controller implements AsyncProcessor {
                 break;
             case ControlMessage.TYPE_OPEN_HARD_KEYBOARD_SETTINGS:
                 openHardKeyboardSettings();
+                break;
+            case ControlMessage.TYPE_RELOAD:
+                if (surfaceCapture!=null){
+                    surfaceCapture.requestReset();
+                }
                 break;
             default:
                 // do nothing

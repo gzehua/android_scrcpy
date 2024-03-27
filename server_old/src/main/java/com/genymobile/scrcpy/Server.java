@@ -64,17 +64,24 @@ public final class Server {
         List<AsyncProcessor> asyncProcessors = new ArrayList<>();
         try (DesktopConnection connection = DesktopConnection.open(ip)) {
 
-            if (video){
-                SurfaceEncoder screenEncoder = new SurfaceEncoder(options.getVideoBitRate(),device,connection.getVideoOutput());
-                asyncProcessors.add(screenEncoder);
+
+            SurfaceCapture surfaceCapture = null;
+            if (video) {
+                Streamer videoStreamer = new Streamer(connection.getVideoFd(), options.getVideoCodec(), options.getSendCodecMeta(),
+                        options.getSendFrameMeta());
+                surfaceCapture = new ScreenCapture(device);
+                SurfaceEncoder surfaceEncoder = new SurfaceEncoder(surfaceCapture, videoStreamer, options.getVideoBitRate(), options.getMaxFps(),
+                        options.getVideoCodecOptions(), options.getVideoEncoder(), options.getDownsizeOnError());
+                asyncProcessors.add(surfaceEncoder);
             }
+
 
             if (control) {
                 ControlChannel controlChannel = connection.getControlChannel();
-                Controller controller = new Controller(device, controlChannel, cleanUp, options.getClipboardAutosync(), options.getPowerOn());
+                Controller controller = new Controller(device, controlChannel, surfaceCapture, cleanUp, options.getClipboardAutosync(), options.getPowerOn());
                 device.setClipboardListener(text -> {
-//                    DeviceMessage msg = DeviceMessage.createClipboard(text);
-//                    controller.getSender().send(msg);
+                    DeviceMessage msg = DeviceMessage.createClipboard(text);
+                    controller.getSender().send(msg);
                 });
                 asyncProcessors.add(controller);
             }

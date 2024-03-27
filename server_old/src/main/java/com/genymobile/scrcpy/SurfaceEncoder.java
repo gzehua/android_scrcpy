@@ -1,178 +1,178 @@
 package com.genymobile.scrcpy;
 
-import android.graphics.Rect;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaFormat;
-import android.os.Build;
-import android.os.IBinder;
+import android.os.Looper;
+import android.os.SystemClock;
 import android.view.Surface;
 
-import com.genymobile.scrcpy.model.MediaPacket;
-import com.genymobile.scrcpy.model.VideoPacket;
-import com.genymobile.scrcpy.wrappers.SurfaceControl;
-
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class SurfaceEncoder implements Device.RotationListener,AsyncProcessor {
+public class SurfaceEncoder implements AsyncProcessor {
 
-    private Thread thread;
-
-    private static final int DEFAULT_FRAME_RATE = 60; // fps
     private static final int DEFAULT_I_FRAME_INTERVAL = 10; // seconds
     private static final int REPEAT_FRAME_DELAY_US = 100_000; // repeat after 100ms
+    private static final String KEY_MAX_FPS_TO_ENCODER = "max-fps-to-encoder";
 
-    private static final int REPEAT_FRAME_DELAY = 6; // repeat after 6 frames
+    // Keep the values in descending order
+    private static final int[] MAX_SIZE_FALLBACK = {2560, 1920, 1600, 1280, 1024, 800};
+    private static final int MAX_CONSECUTIVE_ERRORS = 3;
 
-    private static final int MICROSECONDS_IN_ONE_SECOND = 1_000_000;
+    private final SurfaceCapture capture;
+    private final Streamer streamer;
+    private final String encoderName;
+    private final List<CodecOption> codecOptions;
+    private final int videoBitRate;
+    private final int maxFps;
+    private final boolean downsizeOnError;
 
-    private final AtomicBoolean rotationChanged = new AtomicBoolean();
+    private boolean firstFrameSent;
+    private int consecutiveErrors;
 
-    private int bitRate;
-    private int frameRate;
-    private int iFrameInterval;
-    private Device device;
-    private OutputStream outputStream;
+    private Thread thread;
+    private final AtomicBoolean stopped = new AtomicBoolean();
 
-    SurfaceEncoder(int bitRate, int frameRate, int iFrameInterval) {
-        this.bitRate = bitRate;
-        this.frameRate = frameRate;
-        this.iFrameInterval = iFrameInterval;
+    public SurfaceEncoder(SurfaceCapture capture, Streamer streamer, int videoBitRate, int maxFps, List<CodecOption> codecOptions, String encoderName,
+            boolean downsizeOnError) {
+        this.capture = capture;
+        this.streamer = streamer;
+        this.videoBitRate = videoBitRate;
+        this.maxFps = maxFps;
+        this.codecOptions = codecOptions;
+        this.encoderName = encoderName;
+        this.downsizeOnError = downsizeOnError;
     }
 
-    public SurfaceEncoder(int bitRate,Device device,OutputStream outputStream) {
-        this(bitRate, DEFAULT_FRAME_RATE, DEFAULT_I_FRAME_INTERVAL);
-        this.device = device;
-        this.outputStream = outputStream;
-    }
-	
-    private void streamScreen(Device device, OutputStream outputStream) throws IOException {
-        MediaFormat format = createFormat(bitRate, frameRate, iFrameInterval);
-        device.setRotationListener(this);
-        boolean alive;
+    private void streamScreen() throws IOException, ConfigurationException {
+        Codec codec = streamer.getCodec();
+        MediaCodec mediaCodec = createMediaCodec(codec, encoderName);
+        MediaFormat format = createFormat(codec.getMimeType(), videoBitRate, maxFps, codecOptions);
+
+        capture.init();
+
         try {
+            streamer.writeVideoHeader(capture.getSize());
+
+            boolean alive;
+
             do {
+                Size size = capture.getSize();
+                format.setInteger(MediaFormat.KEY_WIDTH, size.getWidth());
+                format.setInteger(MediaFormat.KEY_HEIGHT, size.getHeight());
 
-                Size size = device.getScreenInfo().getVideoSize();
-                Ln.i("capture size"+size.toString());
+                Surface surface = null;
+                try {
+                    mediaCodec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+                    surface = mediaCodec.createInputSurface();
 
-                MediaCodec codec = createCodec();
-                //todo 适配
-                IBinder display = null;
-                try {
-                    display = createDisplay();
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-                Rect deviceRect = device.getScreenInfo().getContentRect();
-                Rect videoRect = device.getScreenInfo().getVideoSize().toRect();
-                setSize(format, videoRect.width(), videoRect.height());
-                configure(codec, format);
-                Surface surface = codec.createInputSurface();
-                setDisplaySurface(display, surface, deviceRect, videoRect);
-                codec.start();
-                try {
-                    alive = encode(codec, outputStream);
+                    capture.start(surface);
+
+                    mediaCodec.start();
+
+                    alive = encode(mediaCodec, streamer);
+                    // do not call stop() on exception, it would trigger an IllegalStateException
+                    mediaCodec.stop();
+                } catch (IllegalStateException | IllegalArgumentException e) {
+                    Ln.e("Encoding error: " + e.getClass().getName() + ": " + e.getMessage());
+                    if (!prepareRetry(size)) {
+                        throw e;
+                    }
+                    Ln.i("Retrying...");
+                    alive = true;
                 } finally {
-                    codec.stop();
-                    destroyDisplay(display);
-                    codec.release();
-                    surface.release();
+                    mediaCodec.reset();
+                    if (surface != null) {
+                        surface.release();
+                    }
                 }
             } while (alive);
         } finally {
-            device.setRotationListener(null);
+            mediaCodec.release();
+            capture.release();
         }
     }
 
+    private boolean prepareRetry(Size currentSize) {
+        if (firstFrameSent) {
+            ++consecutiveErrors;
+            if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+                // Definitively fail
+                return false;
+            }
 
-    private static MediaCodec createCodec() throws IOException {
-        return MediaCodec.createEncoderByType("video/avc");
-    }
-
-
-    private static IBinder createDisplay() throws Exception {
-        return SurfaceControl.createDisplay("scrcpy", false);
-    }
-
-    private static void configure(MediaCodec codec, MediaFormat format) {
-        codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
-    }
-
-    private static void setSize(MediaFormat format, int width, int height) {
-        format.setInteger(MediaFormat.KEY_WIDTH, width);
-        format.setInteger(MediaFormat.KEY_HEIGHT, height);
-    }
-
-    private static void setDisplaySurface(IBinder display, Surface surface, Rect deviceRect, Rect displayRect) {
-        SurfaceControl.openTransaction();
-        try {
-            SurfaceControl.setDisplaySurface(display, surface);
-            SurfaceControl.setDisplayProjection(display, 0, deviceRect, displayRect);
-            SurfaceControl.setDisplayLayerStack(display, 0);
-        } finally {
-            SurfaceControl.closeTransaction();
+            // Wait a bit to increase the probability that retrying will fix the problem
+            SystemClock.sleep(50);
+            return true;
         }
+
+        if (!downsizeOnError) {
+            // Must fail immediately
+            return false;
+        }
+
+        // Downsizing on error is only enabled if an encoding failure occurs before the first frame (downsizing later could be surprising)
+
+        int newMaxSize = chooseMaxSizeFallback(currentSize);
+        if (newMaxSize == 0) {
+            // Must definitively fail
+            return false;
+        }
+
+        boolean accepted = capture.setMaxSize(newMaxSize);
+        if (!accepted) {
+            return false;
+        }
+
+        // Retry with a smaller size
+        Ln.i("Retrying with -m" + newMaxSize + "...");
+        return true;
     }
 
-    private static void destroyDisplay(IBinder display) {
-        SurfaceControl.destroyDisplay(display);
+    private static int chooseMaxSizeFallback(Size failedSize) {
+        int currentMaxSize = Math.max(failedSize.getWidth(), failedSize.getHeight());
+        for (int value : MAX_SIZE_FALLBACK) {
+            if (value < currentMaxSize) {
+                // We found a smaller value to reduce the video size
+                return value;
+            }
+        }
+        // No fallback, fail definitively
+        return 0;
     }
 
-    @Override
-    public void onRotationChanged(int rotation) {
-        rotationChanged.set(true);
-    }
-
-    public boolean consumeRotationChange() {
-        return rotationChanged.getAndSet(false);
-    }
-
-    private boolean encode(MediaCodec codec, OutputStream outputStream) throws IOException {
-        @SuppressWarnings("checkstyle:MagicNumber")
-//        byte[] buf = new byte[bitRate / 8]; // may contain up to 1 second of video
+    private boolean encode(MediaCodec codec, Streamer streamer) throws IOException {
         boolean eof = false;
+        boolean alive = true;
         MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
-        while (!consumeRotationChange() && !eof) {
+
+        while (!capture.consumeReset() && !eof) {
+            if (stopped.get()) {
+                alive = false;
+                break;
+            }
             int outputBufferId = codec.dequeueOutputBuffer(bufferInfo, -1);
-            eof = (bufferInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0;
             try {
-                if (consumeRotationChange()) {
+                if (capture.consumeReset()) {
                     // must restart encoding with new size
                     break;
                 }
+
+                eof = (bufferInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0;
                 if (outputBufferId >= 0) {
-                    ByteBuffer outputBuffer;
-                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-                        ByteBuffer[] outputBuffers = codec.getOutputBuffers();
-                        outputBuffer = outputBuffers[outputBufferId];
-                    } else {
-                        outputBuffer = codec.getOutputBuffer(outputBufferId);
+                    ByteBuffer codecBuffer = codec.getOutputBuffer(outputBufferId);
+
+                    boolean isConfig = (bufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0;
+                    if (!isConfig) {
+                        // If this is not a config packet, then it contains a frame
+                        firstFrameSent = true;
+                        consecutiveErrors = 0;
                     }
 
-                    if (bufferInfo.size > 0 && outputBuffer != null) {
-                        outputBuffer.position(bufferInfo.offset);
-                        outputBuffer.limit(bufferInfo.offset + bufferInfo.size);
-                        byte[] b = new byte[outputBuffer.remaining()];
-                        outputBuffer.get(b);
-
-                        MediaPacket.Type type = MediaPacket.Type.VIDEO;
-                        VideoPacket.Flag flag = VideoPacket.Flag.CONFIG;
-
-                        if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) == MediaCodec.BUFFER_FLAG_END_OF_STREAM) {
-                            flag = VideoPacket.Flag.END;
-                        } else if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) == MediaCodec.BUFFER_FLAG_KEY_FRAME) {
-                            flag = VideoPacket.Flag.KEY_FRAME;
-                        } else if (bufferInfo.flags == 0) {
-                            flag = VideoPacket.Flag.FRAME;
-                        }
-                        VideoPacket packet = new VideoPacket(type, flag, bufferInfo.presentationTimeUs, b);
-                        outputStream.write(packet.toByteArray());
-                    }
-
+                    streamer.writePacket(codecBuffer, bufferInfo);
                 }
             } finally {
                 if (outputBufferId >= 0) {
@@ -181,38 +181,85 @@ public class SurfaceEncoder implements Device.RotationListener,AsyncProcessor {
             }
         }
 
-        return !eof;
+        if (capture.isClosed()) {
+            // The capture might have been closed internally (for example if the camera is disconnected)
+            alive = false;
+        }
+
+        return !eof && alive;
     }
-	
-	private static MediaFormat createFormat(int bitRate, int frameRate, int iFrameInterval) throws IOException {
+
+    private static MediaCodec createMediaCodec(Codec codec, String encoderName) throws IOException, ConfigurationException {
+        if (encoderName != null) {
+            Ln.d("Creating encoder by name: '" + encoderName + "'");
+            try {
+                return MediaCodec.createByCodecName(encoderName);
+            } catch (IllegalArgumentException e) {
+                Ln.e("Video encoder '" + encoderName + "' for " + codec.getName() + " not found\n" + LogUtils.buildVideoEncoderListMessage());
+                throw new ConfigurationException("Unknown encoder: " + encoderName);
+            } catch (IOException e) {
+                Ln.e("Could not create video encoder '" + encoderName + "' for " + codec.getName() + "\n" + LogUtils.buildVideoEncoderListMessage());
+                throw e;
+            }
+        }
+
+        try {
+            MediaCodec mediaCodec = MediaCodec.createEncoderByType(codec.getMimeType());
+            Ln.d("Using video encoder: '" + mediaCodec.getName() + "'");
+            return mediaCodec;
+        } catch (IOException | IllegalArgumentException e) {
+            Ln.e("Could not create default video encoder for " + codec.getName() + "\n" + LogUtils.buildVideoEncoderListMessage());
+            throw e;
+        }
+    }
+
+    private static MediaFormat createFormat(String videoMimeType, int bitRate, int maxFps, List<CodecOption> codecOptions) {
         MediaFormat format = new MediaFormat();
-        format.setString(MediaFormat.KEY_MIME, "video/avc");
+        format.setString(MediaFormat.KEY_MIME, videoMimeType);
         format.setInteger(MediaFormat.KEY_BIT_RATE, bitRate);
         // must be present to configure the encoder, but does not impact the actual frame rate, which is variable
         format.setInteger(MediaFormat.KEY_FRAME_RATE, 60);
         format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
         format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, DEFAULT_I_FRAME_INTERVAL);
-
         // display the very first frame, and recover from bad quality when no new frames
         format.setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, REPEAT_FRAME_DELAY_US); // µs
-//        if (maxFps > 0) {
-//            // The key existed privately before Android 10:
-//            // <https://android.googlesource.com/platform/frameworks/base/+/625f0aad9f7a259b6881006ad8710adce57d1384%5E%21/>
-//            // <https://github.com/Genymobile/scrcpy/issues/488#issuecomment-567321437>
-//            format.setFloat(KEY_MAX_FPS_TO_ENCODER, maxFps);
-//        }
+        if (maxFps > 0) {
+            // The key existed privately before Android 10:
+            // <https://android.googlesource.com/platform/frameworks/base/+/625f0aad9f7a259b6881006ad8710adce57d1384%5E%21/>
+            // <https://github.com/Genymobile/scrcpy/issues/488#issuecomment-567321437>
+            format.setFloat(KEY_MAX_FPS_TO_ENCODER, maxFps);
+        }
+
+        if (codecOptions != null) {
+            for (CodecOption option : codecOptions) {
+                String key = option.getKey();
+                Object value = option.getValue();
+                CodecUtils.setCodecOption(format, key, value);
+                Ln.d("Video codec option set: " + key + " (" + value.getClass().getSimpleName() + ") = " + value);
+            }
+        }
+
         return format;
     }
 
     @Override
     public void start(TerminationListener listener) {
         thread = new Thread(() -> {
+            // Some devices (Meizu) deadlock if the video encoding thread has no Looper
+            // <https://github.com/Genymobile/scrcpy/issues/4143>
+            Looper.prepare();
+
             try {
-               streamScreen(device,outputStream);
+                streamScreen();
+            } catch (ConfigurationException e) {
+                // Do not print stack trace, a user-friendly error-message has already been logged
             } catch (IOException e) {
-                Ln.e("Controller error", e);
+                // Broken pipe is expected on close, because the socket is closed by the client
+                if (!IO.isBrokenPipe(e)) {
+                    Ln.e("Video encoding error", e);
+                }
             } finally {
-                Ln.d("Controller stopped");
+                Ln.d("Screen streaming stopped");
                 listener.onTerminated(true);
             }
         }, "video");
@@ -222,7 +269,7 @@ public class SurfaceEncoder implements Device.RotationListener,AsyncProcessor {
     @Override
     public void stop() {
         if (thread != null) {
-            thread.interrupt();
+            stopped.set(true);
         }
     }
 

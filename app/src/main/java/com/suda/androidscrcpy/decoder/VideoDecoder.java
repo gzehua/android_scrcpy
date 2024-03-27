@@ -40,8 +40,12 @@ public class VideoDecoder {
             mWorker.setRunning(false);
             mWorker = null;
             mIsConfigured.set(false);
-            if (mCodec != null)
-                mCodec.stop();
+            try {
+                if (mCodec != null)
+                    mCodec.stop();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -59,10 +63,9 @@ public class VideoDecoder {
         private void configure(Surface surface, int width, int height, ByteBuffer csd0, ByteBuffer csd1) {
             if (mIsConfigured.get()) {
                 mIsConfigured.set(false);
-
                 try {
                     mCodec.stop();
-                }catch (Exception e){
+                } catch (Exception e) {
                     e.printStackTrace();
                 }
 

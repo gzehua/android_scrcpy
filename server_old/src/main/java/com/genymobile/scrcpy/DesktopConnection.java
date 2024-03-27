@@ -5,13 +5,19 @@ import android.net.LocalSocketAddress;
 import android.util.Log;
 
 import java.io.Closeable;
+import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 
 public final class DesktopConnection implements Closeable {
 
+    private static final int DEVICE_NAME_FIELD_LENGTH = 64;
 
-    private LocalSocket videoSocket;
+    private static final String SOCKET_NAME_PREFIX = "scrcpy";
+
+    private final LocalSocket videoSocket;
+    private final FileDescriptor videoFd;
     private OutputStream videoOutput;
 
     private final LocalSocket controlSocket;
@@ -20,6 +26,7 @@ public final class DesktopConnection implements Closeable {
     private DesktopConnection(LocalSocket videoSocket, LocalSocket controlSocket) throws IOException {
         this.videoSocket = videoSocket;
         this.controlSocket = controlSocket;
+        videoFd = videoSocket != null ? videoSocket.getFileDescriptor() : null;
         videoOutput = videoSocket.getOutputStream();
         controlChannel = controlSocket != null ? new ControlChannel(controlSocket) : null;
     }
@@ -38,6 +45,15 @@ public final class DesktopConnection implements Closeable {
         return connection;
     }
 
+
+    private LocalSocket getFirstSocket() {
+        if (videoSocket != null) {
+            return videoSocket;
+        }
+        return controlSocket;
+    }
+
+
     public void close() throws IOException {
         videoSocket.shutdownInput();
         videoSocket.shutdownOutput();
@@ -48,10 +64,21 @@ public final class DesktopConnection implements Closeable {
         controlSocket.close();
     }
 
-    public OutputStream getVideoOutput() {
-        return videoOutput;
+    public void sendDeviceMeta(String deviceName) throws IOException {
+        byte[] buffer = new byte[DEVICE_NAME_FIELD_LENGTH];
+
+        byte[] deviceNameBytes = deviceName.getBytes(StandardCharsets.UTF_8);
+        int len = StringUtils.getUtf8TruncationIndex(deviceNameBytes, DEVICE_NAME_FIELD_LENGTH - 1);
+        System.arraycopy(deviceNameBytes, 0, buffer, 0, len);
+        // byte[] are always 0-initialized in java, no need to set '\0' explicitly
+
+        FileDescriptor fd = getFirstSocket().getFileDescriptor();
+        IO.writeFully(fd, buffer, 0, buffer.length);
     }
 
+    public FileDescriptor getVideoFd() {
+        return videoFd;
+    }
     public ControlChannel getControlChannel() {
         return controlChannel;
     }

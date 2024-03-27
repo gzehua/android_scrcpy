@@ -12,6 +12,7 @@ import android.hardware.usb.UsbManager
 import android.hardware.usb.UsbManager.ACTION_USB_DEVICE_DETACHED
 import android.os.Bundle
 import android.view.Surface
+import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
 import android.view.ViewGroup
@@ -35,6 +36,7 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
 
     private val mScrcpyVM: ScrcpyVM by viewModels()
     var mSurface: Surface? = null
+    var resumeFromPause = false
 
 
     var mBackPressed: Long = 0
@@ -71,6 +73,33 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
                 requestedOrientation = SCREEN_ORIENTATION_LANDSCAPE
             }
         }
+        mSurfaceView.holder.addCallback(object : SurfaceHolder.Callback {
+            override fun surfaceCreated(holder: SurfaceHolder) {
+
+            }
+
+            override fun surfaceChanged(
+                holder: SurfaceHolder,
+                format: Int,
+                width: Int,
+                height: Int
+            ) {
+            }
+
+            override fun surfaceDestroyed(holder: SurfaceHolder) {
+                mScrcpyVM.pause()
+                resumeFromPause=true
+            }
+        })
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (resumeFromPause){
+            mScrcpyVM.resume(mSurfaceView.holder.surface)
+
+        }
+        resumeFromPause = false
     }
 
 
@@ -159,21 +188,8 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
         unregisterReceiver(mUsbUnPlugReceiver)
     }
 
-    var resumeFromPause = false
 
-    override fun onStop() {
-        super.onStop()
-        resumeFromPause = true
-        mScrcpyVM.pause()
-    }
 
-    override fun onStart() {
-        super.onStart()
-        if (resumeFromPause) {
-            mScrcpyVM.resume(mSurfaceView.holder.surface)
-        }
-        resumeFromPause = false
-    }
 
     override fun onBackPressed() {
         if (mBackPressed + TIME_INTERVAL > System.currentTimeMillis()) {
