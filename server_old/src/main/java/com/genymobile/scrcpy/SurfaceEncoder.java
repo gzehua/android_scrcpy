@@ -172,7 +172,7 @@ public class SurfaceEncoder implements AsyncProcessor {
                         consecutiveErrors = 0;
                     }
 
-                    streamer.writePacket(codecBuffer, bufferInfo);
+                    streamer.writePacket(codecBuffer, bufferInfo, capture.getSize().getWidth() < capture.getSize().getHeight());
                 }
             } finally {
                 if (outputBufferId >= 0) {

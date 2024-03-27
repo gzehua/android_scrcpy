@@ -5,13 +5,13 @@ import android.media.MediaCodec;
 import java.io.FileDescriptor;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.util.Arrays;
 
 public final class Streamer {
 
-    private static final long PACKET_FLAG_CONFIG = 1L << 63;
+    private static final long PACKET_FLAG_CONFIG_PORT = 1L << 63;
     private static final long PACKET_FLAG_KEY_FRAME = 1L << 62;
+    private static final long PACKET_FLAG_KEY_CONFIG_LAND = 1L << 61;
+
 
     private final FileDescriptor fd;
     private final Codec codec;
@@ -42,30 +42,34 @@ public final class Streamer {
         }
     }
 
-    public void writePacket(ByteBuffer buffer, long pts, boolean config, boolean keyFrame) throws IOException {
+    public void writePacket(ByteBuffer buffer, long pts, boolean config, boolean keyFrame, boolean isPort) throws IOException {
         if (config) {
         }
 
         if (sendFrameMeta) {
-            writeFrameMeta(fd, buffer.remaining(), pts, config, keyFrame);
+            writeFrameMeta(fd, buffer.remaining(), pts, config, keyFrame,isPort);
         }
 
         IO.writeFully(fd, buffer);
     }
 
     public void writePacket(ByteBuffer codecBuffer, MediaCodec.BufferInfo bufferInfo) throws IOException {
+        writePacket(codecBuffer, bufferInfo, true);
+    }
+
+    public void writePacket(ByteBuffer codecBuffer, MediaCodec.BufferInfo bufferInfo,boolean isPort) throws IOException {
         long pts = bufferInfo.presentationTimeUs;
         boolean config = (bufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0;
         boolean keyFrame = (bufferInfo.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0;
-        writePacket(codecBuffer, pts, config, keyFrame);
+        writePacket(codecBuffer, pts, config, keyFrame,isPort);
     }
 
-    private void writeFrameMeta(FileDescriptor fd, int packetSize, long pts, boolean config, boolean keyFrame) throws IOException {
+    private void writeFrameMeta(FileDescriptor fd, int packetSize, long pts, boolean config, boolean keyFrame, boolean isPort) throws IOException {
         headerBuffer.clear();
 
         long ptsAndFlags;
         if (config) {
-            ptsAndFlags = PACKET_FLAG_CONFIG; // non-media data packet
+            ptsAndFlags = isPort ? PACKET_FLAG_CONFIG_PORT : PACKET_FLAG_KEY_CONFIG_LAND; // non-media data packet
         } else {
             ptsAndFlags = pts;
             if (keyFrame) {

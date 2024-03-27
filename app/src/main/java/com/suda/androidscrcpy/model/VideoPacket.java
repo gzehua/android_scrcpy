@@ -10,12 +10,14 @@ import java.nio.ByteBuffer;
 public class VideoPacket extends MediaPacket {
 
 
-    private static final long PACKET_FLAG_CONFIG = 1L << 63;
+    private static final long PACKET_FLAG_CONFIG_PORT = 1L << 63;
     private static final long PACKET_FLAG_KEY_FRAME = 1L << 62;
+    private static final long PACKET_FLAG_KEY_CONFIG_LAND = 1L << 61;
 
     public Flag flag;
     public long presentationTimeStamp;
     public byte[] data;
+    public boolean isPort;
 
     public VideoPacket() {
     }
@@ -31,8 +33,9 @@ public class VideoPacket extends MediaPacket {
     public static VideoPacket fromArray(byte[] values, long ptsAndFlags) {
         VideoPacket videoPacket = new VideoPacket();
         videoPacket.type = Type.VIDEO;
-        if (ptsAndFlags == PACKET_FLAG_CONFIG) {
+        if (ptsAndFlags == PACKET_FLAG_CONFIG_PORT || ptsAndFlags == PACKET_FLAG_KEY_CONFIG_LAND) {
             videoPacket.flag = Flag.CONFIG;
+            videoPacket.isPort = ptsAndFlags == PACKET_FLAG_CONFIG_PORT;
         } else if ((ptsAndFlags & PACKET_FLAG_KEY_FRAME) == PACKET_FLAG_KEY_FRAME) {
             videoPacket.flag = Flag.KEY_FRAME;
             videoPacket.presentationTimeStamp = ptsAndFlags & ~PACKET_FLAG_KEY_FRAME;

@@ -44,7 +44,7 @@ class ScrcpyVM(app: Application) : AndroidViewModel(app) {
     private var streamSettings: VideoPacket.StreamSettings? = null
 
     private val mPause = AtomicBoolean(false)
-
+    private var resumeFromPause = false
     var mSurface: Surface? = null
         set(value) {
             if (field != null) {
@@ -59,14 +59,18 @@ class ScrcpyVM(app: Application) : AndroidViewModel(app) {
         mVideoDecoder?.stop()
         mVideoDecoder = null
         mPause.set(true)
+        resumeFromPause = true
     }
 
     fun resume(surface: Surface) {
-        mSurface = surface
-        mPause.set(false)
-        mVideoDecoder = VideoDecoder()
-        mVideoDecoder?.start()
-        mActionQueue.offer(ReloadEventMessage())
+        if (resumeFromPause) {
+            mSurface = surface
+            mPause.set(false)
+            mVideoDecoder = VideoDecoder()
+            mVideoDecoder?.start()
+            mActionQueue.offer(ReloadEventMessage())
+        }
+
     }
 
     fun init(device: String) {
@@ -221,18 +225,18 @@ class ScrcpyVM(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun loadNewRotation(isLand: Boolean) {
+    private fun loadNewRotation(isPort: Boolean) {
         val temp = mScreenHeight + mScreenWidth
         mScreenWidth =
-            if (isLand) Math.max(mScreenWidth, mScreenHeight) else Math.min(
+            if (isPort) Math.min(mScreenWidth, mScreenHeight) else Math.max(
                 mScreenWidth,
                 mScreenHeight
             )
         mScreenHeight = temp - mScreenWidth
-        if (isLand) {
-            _rotationLiveData.postValue(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
-        } else {
+        if (isPort) {
             _rotationLiveData.postValue(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+        } else {
+            _rotationLiveData.postValue(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
         }
     }
 
@@ -287,7 +291,7 @@ class ScrcpyVM(app: Application) : AndroidViewModel(app) {
                 if (videoPacket.flag == VideoPacket.Flag.CONFIG || mUpdateAvailable.get()) {
                     if (!mUpdateAvailable.get()) {
                         streamSettings = VideoPacket.getStreamSettings(data)
-                        loadNewRotation(false)
+                        loadNewRotation(videoPacket.isPort)
                         if (!mFirstTime) {
                             try {
                                 Thread.sleep(200)

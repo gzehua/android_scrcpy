@@ -88,18 +88,13 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
 
             override fun surfaceDestroyed(holder: SurfaceHolder) {
                 mScrcpyVM.pause()
-                resumeFromPause=true
             }
         })
     }
 
     override fun onResume() {
         super.onResume()
-        if (resumeFromPause){
-            mScrcpyVM.resume(mSurfaceView.holder.surface)
-
-        }
-        resumeFromPause = false
+        mScrcpyVM.resume(mSurfaceView.holder.surface)
     }
 
 
@@ -187,8 +182,6 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
         super.onDestroy()
         unregisterReceiver(mUsbUnPlugReceiver)
     }
-
-
 
 
     override fun onBackPressed() {
