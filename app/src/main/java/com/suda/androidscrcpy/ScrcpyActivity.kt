@@ -75,7 +75,7 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
         }
         mSurfaceView.holder.addCallback(object : SurfaceHolder.Callback {
             override fun surfaceCreated(holder: SurfaceHolder) {
-
+                mScrcpyVM.surfaceCreated(mSurfaceView.holder.surface)
             }
 
             override fun surfaceChanged(
@@ -87,16 +87,10 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
             }
 
             override fun surfaceDestroyed(holder: SurfaceHolder) {
-                mScrcpyVM.pause()
+                mScrcpyVM.surfaceDestroyed()
             }
         })
     }
-
-    override fun onResume() {
-        super.onResume()
-        mScrcpyVM.resume(mSurfaceView.holder.surface)
-    }
-
 
     @SuppressLint("ClickableViewAccessibility")
     private fun setUpUi(withNav: Boolean) {
@@ -110,7 +104,6 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
                 or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY)
         resetSurface()
         mSurface = mSurfaceView.holder.surface
-        mScrcpyVM.mSurface = mSurface
         if (withNav) {
             val backButton = findViewById<View>(R.id.back_button)
             val homeButton = findViewById<View>(R.id.home_button)

@@ -42,36 +42,32 @@ class ScrcpyVM(app: Application) : AndroidViewModel(app) {
     private lateinit var mDevice: String
     private val mActionQueue = ConcurrentLinkedQueue<ControlEventMessage>()
     private var streamSettings: VideoPacket.StreamSettings? = null
+    private val maxSize = 1080
 
     private val mPause = AtomicBoolean(false)
-    private var resumeFromPause = false
-    var mSurface: Surface? = null
-        set(value) {
-            if (field != null) {
-                field = value
-                mUpdateAvailable.set(true)
-            } else {
-                field = value
-            }
-        }
+    private var mIsRecreate = false
+    private var mSurface: Surface? = null
 
-    fun pause() {
-        mVideoDecoder?.stop()
-        mVideoDecoder = null
-        mPause.set(true)
-        resumeFromPause = true
-    }
-
-    fun resume(surface: Surface) {
-        if (resumeFromPause) {
-            mSurface = surface
+    fun surfaceCreated(surface: Surface) {
+        mSurface = surface
+        if (mIsRecreate) {
             mPause.set(false)
             mVideoDecoder = VideoDecoder()
             mVideoDecoder?.start()
             mActionQueue.offer(ReloadEventMessage())
+            mUpdateAvailable.set(true)
+        } else {
+            startStream()
         }
-
     }
+
+    fun surfaceDestroyed() {
+        mVideoDecoder?.stop()
+        mVideoDecoder = null
+        mPause.set(true)
+        mIsRecreate = true
+    }
+
 
     fun init(device: String) {
         if (!mFirstTime) {
@@ -95,19 +91,7 @@ class ScrcpyVM(app: Application) : AndroidViewModel(app) {
             "localabstract:scrcpy",
             "tcp:5005"
         )
-
-        val maxSize = 1080
         computeScreenInfo(maxSize)
-        start()
-        Thread {
-            ADBUtils.exec2(
-                "adb.bin-arm",
-                "-s",
-                device,
-                "shell",
-                "CLASSPATH=/data/local/tmp/scrcpy-server.jar app_process / com.genymobile.scrcpy.Server 1.0 max_size=$maxSize",
-            )
-        }.start()
     }
 
     fun offerTouchEvent(touchEvent: MotionEvent, surfaceViewW: Int, surfaceViewH: Int) {
@@ -169,9 +153,17 @@ class ScrcpyVM(app: Application) : AndroidViewModel(app) {
         mScreenHeight = h
     }
 
-    private fun start() {
-        val thread = Thread { startConnection() }
-        thread.start()
+    private fun startStream() {
+        Thread { startConnection() }.start()
+        Thread {
+            ADBUtils.exec2(
+                "adb.bin-arm",
+                "-s",
+                mDevice,
+                "shell",
+                "CLASSPATH=/data/local/tmp/scrcpy-server.jar app_process / com.genymobile.scrcpy.Server 1.0 max_size=$maxSize",
+            )
+        }.start()
     }
 
     private fun startConnection() {
