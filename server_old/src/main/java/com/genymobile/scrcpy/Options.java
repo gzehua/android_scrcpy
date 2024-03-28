@@ -16,7 +16,6 @@ public class Options {
     private int videoBitRate = 8000000;
     private int maxFps;
     private int lockVideoOrientation = -1;
-    private boolean tunnelForward;
     private Rect crop;
     private boolean control = true;
     private int displayId;
@@ -40,11 +39,7 @@ public class Options {
     private boolean listDisplays;
     private boolean listCameras;
     private boolean listCameraSizes;
-
-    // Options not used by the scrcpy client, but useful to use scrcpy-server directly
-    private boolean sendDeviceMeta = true; // send device name and size
     private boolean sendFrameMeta = true; // send PTS so that the client may record properly
-    private boolean sendDummyByte = true; // write a byte on start to detect connection issues
     private boolean sendCodecMeta = true; // write the codec metadata before the stream
 
     public Ln.Level getLogLevel() {
@@ -81,10 +76,6 @@ public class Options {
 
     public int getLockVideoOrientation() {
         return lockVideoOrientation;
-    }
-
-    public boolean isTunnelForward() {
-        return tunnelForward;
     }
 
     public Rect getCrop() {
@@ -179,16 +170,8 @@ public class Options {
         return listCameraSizes;
     }
 
-    public boolean getSendDeviceMeta() {
-        return sendDeviceMeta;
-    }
-
     public boolean getSendFrameMeta() {
         return sendFrameMeta;
-    }
-
-    public boolean getSendDummyByte() {
-        return sendDummyByte;
     }
 
     public boolean getSendCodecMeta() {
@@ -249,9 +232,6 @@ public class Options {
                     break;
                 case "lock_video_orientation":
                     options.lockVideoOrientation = Integer.parseInt(value);
-                    break;
-                case "tunnel_forward":
-                    options.tunnelForward = Boolean.parseBoolean(value);
                     break;
                 case "crop":
                     if (!value.isEmpty()) {
@@ -335,14 +315,8 @@ public class Options {
                 case "camera_high_speed":
                     options.cameraHighSpeed = Boolean.parseBoolean(value);
                     break;
-                case "send_device_meta":
-                    options.sendDeviceMeta = Boolean.parseBoolean(value);
-                    break;
                 case "send_frame_meta":
                     options.sendFrameMeta = Boolean.parseBoolean(value);
-                    break;
-                case "send_dummy_byte":
-                    options.sendDummyByte = Boolean.parseBoolean(value);
                     break;
                 case "send_codec_meta":
                     options.sendCodecMeta = Boolean.parseBoolean(value);
@@ -350,9 +324,7 @@ public class Options {
                 case "raw_stream":
                     boolean rawStream = Boolean.parseBoolean(value);
                     if (rawStream) {
-                        options.sendDeviceMeta = false;
                         options.sendFrameMeta = false;
-                        options.sendDummyByte = false;
                         options.sendCodecMeta = false;
                     }
                     break;
