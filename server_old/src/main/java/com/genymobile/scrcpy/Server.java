@@ -69,7 +69,12 @@ public final class Server {
             if (video) {
                 Streamer videoStreamer = new Streamer(connection.getVideoFd(), options.getVideoCodec(), options.getSendCodecMeta(),
                         options.getSendFrameMeta());
-                surfaceCapture = new ScreenCapture(device);
+                if (options.getVideoSource() == VideoSource.DISPLAY) {
+                    surfaceCapture = new ScreenCapture(device);
+                } else {
+                    surfaceCapture = new CameraCapture(options.getCameraId(), options.getCameraFacing(), options.getCameraSize(),
+                            options.getMaxSize(), options.getCameraAspectRatio(), options.getCameraFps(), options.getCameraHighSpeed());
+                }
                 SurfaceEncoder surfaceEncoder = new SurfaceEncoder(surfaceCapture, videoStreamer, options.getVideoBitRate(), options.getMaxFps(),
                         options.getVideoCodecOptions(), options.getVideoEncoder(), options.getDownsizeOnError());
                 asyncProcessors.add(surfaceEncoder);

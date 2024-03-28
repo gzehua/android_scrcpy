@@ -12,6 +12,7 @@ public class Options {
     private boolean video = true;
     private int maxSize;
     private VideoCodec videoCodec = VideoCodec.H264;
+    private VideoSource videoSource = VideoSource.DISPLAY;
     private int videoBitRate = 8000000;
     private int maxFps;
     private int lockVideoOrientation = -1;
@@ -19,6 +20,12 @@ public class Options {
     private Rect crop;
     private boolean control = true;
     private int displayId;
+    private String cameraId;
+    private Size cameraSize;
+    private CameraFacing cameraFacing;
+    private CameraAspectRatio cameraAspectRatio;
+    private int cameraFps;
+    private boolean cameraHighSpeed;
     private boolean showTouches;
     private boolean stayAwake;
     private List<CodecOption> videoCodecOptions;
@@ -31,6 +38,8 @@ public class Options {
 
     private boolean listEncoders;
     private boolean listDisplays;
+    private boolean listCameras;
+    private boolean listCameraSizes;
 
     // Options not used by the scrcpy client, but useful to use scrcpy-server directly
     private boolean sendDeviceMeta = true; // send device name and size
@@ -58,6 +67,10 @@ public class Options {
         return videoCodec;
     }
 
+
+    public VideoSource getVideoSource() {
+        return videoSource;
+    }
     public int getVideoBitRate() {
         return videoBitRate;
     }
@@ -86,6 +99,29 @@ public class Options {
         return displayId;
     }
 
+    public String getCameraId() {
+        return cameraId;
+    }
+
+    public Size getCameraSize() {
+        return cameraSize;
+    }
+
+    public CameraFacing getCameraFacing() {
+        return cameraFacing;
+    }
+
+    public CameraAspectRatio getCameraAspectRatio() {
+        return cameraAspectRatio;
+    }
+
+    public int getCameraFps() {
+        return cameraFps;
+    }
+
+    public boolean getCameraHighSpeed() {
+        return cameraHighSpeed;
+    }
 
     public boolean getShowTouches() {
         return showTouches;
@@ -124,7 +160,7 @@ public class Options {
     }
 
     public boolean getList() {
-        return listEncoders || listDisplays;
+        return listEncoders || listDisplays || listCameras || listCameraSizes;
     }
 
     public boolean getListEncoders() {
@@ -133,6 +169,14 @@ public class Options {
 
     public boolean getListDisplays() {
         return listDisplays;
+    }
+
+    public boolean getListCameras() {
+        return listCameras;
+    }
+
+    public boolean getListCameraSizes() {
+        return listCameraSizes;
     }
 
     public boolean getSendDeviceMeta() {
@@ -255,6 +299,42 @@ public class Options {
                 case "list_displays":
                     options.listDisplays = Boolean.parseBoolean(value);
                     break;
+                case "list_cameras":
+                    options.listCameras = Boolean.parseBoolean(value);
+                    break;
+                case "list_camera_sizes":
+                    options.listCameraSizes = Boolean.parseBoolean(value);
+                    break;
+                case "camera_id":
+                    if (!value.isEmpty()) {
+                        options.cameraId = value;
+                    }
+                    break;
+                case "camera_size":
+                    if (!value.isEmpty()) {
+                        options.cameraSize = parseSize(value);
+                    }
+                    break;
+                case "camera_facing":
+                    if (!value.isEmpty()) {
+                        CameraFacing facing = CameraFacing.findByName(value);
+                        if (facing == null) {
+                            throw new IllegalArgumentException("Camera facing " + value + " not supported");
+                        }
+                        options.cameraFacing = facing;
+                    }
+                    break;
+                case "camera_ar":
+                    if (!value.isEmpty()) {
+                        options.cameraAspectRatio = parseCameraAspectRatio(value);
+                    }
+                    break;
+                case "camera_fps":
+                    options.cameraFps = Integer.parseInt(value);
+                    break;
+                case "camera_high_speed":
+                    options.cameraHighSpeed = Boolean.parseBoolean(value);
+                    break;
                 case "send_device_meta":
                     options.sendDeviceMeta = Boolean.parseBoolean(value);
                     break;
@@ -309,4 +389,19 @@ public class Options {
         return new Size(width, height);
     }
 
+    private static CameraAspectRatio parseCameraAspectRatio(String ar) {
+        if ("sensor".equals(ar)) {
+            return CameraAspectRatio.sensorAspectRatio();
+        }
+
+        String[] tokens = ar.split(":");
+        if (tokens.length == 2) {
+            int w = Integer.parseInt(tokens[0]);
+            int h = Integer.parseInt(tokens[1]);
+            return CameraAspectRatio.fromFraction(w, h);
+        }
+
+        float floatAr = Float.parseFloat(tokens[0]);
+        return CameraAspectRatio.fromFloat(floatAr);
+    }
 }
