@@ -18,7 +18,10 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import android.widget.ViewSwitcher.KEEP_SCREEN_ON
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import com.suda.androidscrcpy.utils.ADBUtils
 
@@ -95,13 +98,8 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
     @SuppressLint("ClickableViewAccessibility")
     private fun setUpUi(withNav: Boolean) {
         setContentView(if (withNav) R.layout.surface_nav else R.layout.surface_no_nav)
-        val decorView = window.decorView
-        decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY)
+        WindowCompat.getInsetsController(window, window.decorView)
+            .hide(WindowInsetsCompat.Type.statusBars())
         resetSurface()
         mSurface = mSurfaceView.holder.surface
         if (withNav) {
@@ -143,6 +141,17 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
             mScrcpyVM.offerTouchEvent(event, mSurfaceView.width, mSurfaceView.height)
             true
         }
+
+        onBackPressedDispatcher.addCallback(object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (mBackPressed + TIME_INTERVAL > System.currentTimeMillis()) {
+                    finish()
+                } else {
+                    Toast.makeText(baseContext, "再按一次退出应用", Toast.LENGTH_SHORT).show()
+                }
+                mBackPressed = System.currentTimeMillis()
+            }
+        })
     }
 
     private fun resetSurface() {
@@ -174,16 +183,5 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(mUsbUnPlugReceiver)
-    }
-
-
-    override fun onBackPressed() {
-        if (mBackPressed + TIME_INTERVAL > System.currentTimeMillis()) {
-            super.onBackPressed()
-            return
-        } else {
-            Toast.makeText(baseContext, "再按一次退出应用", Toast.LENGTH_SHORT).show()
-        }
-        mBackPressed = System.currentTimeMillis()
     }
 }
