@@ -10,10 +10,10 @@
 
 TODO
 - [x] adb otg
-- [ ] adb wifi
-- [ ] adb pair
+- [x] adb wifi
+- [x] adb pair
+- [x] scrcpy(video & audio)
 - [ ] adb shell
-- [ ] scrcpy
 
 ## 感谢
 
