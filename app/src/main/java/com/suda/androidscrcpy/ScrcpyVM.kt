@@ -10,7 +10,9 @@ import androidx.lifecycle.MutableLiveData
 import com.suda.androidscrcpy.control.ControlEventMessage
 import com.suda.androidscrcpy.control.ReloadEventMessage
 import com.suda.androidscrcpy.control.TouchEventMessage
+import com.suda.androidscrcpy.decoder.RawAudioDecoder
 import com.suda.androidscrcpy.decoder.VideoDecoder
+import com.suda.androidscrcpy.model.AudioPacket
 import com.suda.androidscrcpy.model.MediaPacket
 import com.suda.androidscrcpy.model.VideoPacket
 import com.suda.androidscrcpy.utils.ADBUtils
@@ -29,10 +31,15 @@ class ScrcpyVM(app: Application) : AndroidViewModel(app) {
     private val mUpdateAvailable = AtomicBoolean(false)
     private val mLetServerRunning = AtomicBoolean(true)
     private var mVideoDecoder: VideoDecoder? = null
-    private var isReadHeader = false
+    private var mAudioDecoder: RawAudioDecoder? = null
+
+    private var isVideoReadHeader = false
+    private var isAudioReadHeader = false
 
     private val _rotationLiveData = MutableLiveData<Int>()
     val rotationLiveData: LiveData<Int> = _rotationLiveData
+
+    private val mAudio = true;
 
     var mScreenWidth = 0
         private set
@@ -123,6 +130,9 @@ class ScrcpyVM(app: Application) : AndroidViewModel(app) {
         runCatching {
             mVideoDecoder?.stop()
         }
+        runCatching {
+            mAudioDecoder?.stop()
+        }
     }
 
     private fun computeScreenInfo(maxSize: Int) {
@@ -161,7 +171,9 @@ class ScrcpyVM(app: Application) : AndroidViewModel(app) {
                 "-s",
                 mDevice,
                 "shell",
-                "CLASSPATH=/data/local/tmp/scrcpy-server.jar app_process / com.genymobile.scrcpy.Server 1.0 max_size=$maxSize",
+                "CLASSPATH=/data/local/tmp/scrcpy-server.jar app_process / com.genymobile.scrcpy.Server 1.0 " +
+                        "audio=$mAudio" +
+                        "max_size=$maxSize",
             )
         }.start()
     }
@@ -169,28 +181,41 @@ class ScrcpyVM(app: Application) : AndroidViewModel(app) {
     private fun startConnection() {
         mVideoDecoder = VideoDecoder()
         mVideoDecoder!!.start()
-        var dataInputStream: DataInputStream
-        var dataOutputStream: DataOutputStream
-        var socket: Socket? = null
+
+        mAudioDecoder = RawAudioDecoder()
+        mAudioDecoder!!.start()
+
+        var videoSocket: Socket? = null
         var controlSocket: Socket? = null
+        var audioSocket: Socket? = null
         var serverSocket: ServerSocket? = null
         try {
             serverSocket = ServerSocket(5005)
-            socket = serverSocket.accept()
+            videoSocket = serverSocket.accept()
+            if (mAudio) {
+                audioSocket = serverSocket.accept()
+            }
             controlSocket = serverSocket.accept()
-            dataInputStream = DataInputStream(socket.getInputStream())
-            dataOutputStream = DataOutputStream(controlSocket.getOutputStream())
 
             Thread {
+                val dataOutputStream = DataOutputStream(controlSocket.getOutputStream())
                 while (mLetServerRunning.get()) {
                     handleSendEvent(dataOutputStream)
                 }
             }.start()
 
-
+            if (mAudio) {
+                Thread {
+                    val dataInputStream = DataInputStream(audioSocket!!.getInputStream())
+                    while (mLetServerRunning.get()) {
+                        decodeAudio(dataInputStream)
+                    }
+                }.start()
+            }
 
             while (mLetServerRunning.get()) {
                 try {
+                    val dataInputStream = DataInputStream(videoSocket.getInputStream())
                     decodeVideo(dataInputStream)
                 } catch (e: IOException) {
                 } catch (e2: Exception) {
@@ -200,20 +225,10 @@ class ScrcpyVM(app: Application) : AndroidViewModel(app) {
         } catch (e: IOException) {
             e.printStackTrace()
         } finally {
-            if (serverSocket != null) {
-                try {
-                    serverSocket.close()
-                } catch (e: IOException) {
-                    e.printStackTrace()
-                }
-            }
-            if (socket != null) {
-                try {
-                    socket.close()
-                } catch (e: IOException) {
-                    e.printStackTrace()
-                }
-            }
+            runCatching {  serverSocket?.close() }
+            runCatching {  videoSocket?.close() }
+            runCatching {  audioSocket?.close() }
+            runCatching {  controlSocket?.close() }
         }
     }
 
@@ -246,12 +261,55 @@ class ScrcpyVM(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    @Throws
+    private fun decodeAudio(dataInputStream: DataInputStream) {
+        if (dataInputStream.available() > 0) {
+            if (!isAudioReadHeader) {
+                //读取宽高
+                val headerBytes = ByteArray(4)
+                dataInputStream.readFully(headerBytes, 0, 4)
+                val byteBuffer = ByteBuffer.allocate(4)
+                byteBuffer.put(headerBytes)
+                byteBuffer.flip()
+                val codecId = byteBuffer.getInt()
+            }
+            isAudioReadHeader = true
+            val frameMetaBytes = ByteArray(12)
+            dataInputStream.readFully(frameMetaBytes, 0, 12)
+            val byteBuffer = ByteBuffer.allocate(12)
+            byteBuffer.put(frameMetaBytes)
+            byteBuffer.flip()
+            val ptsAndFlags = byteBuffer.getLong()
+            val size = byteBuffer.getInt()
+            val packet = ByteArray(size)
+            dataInputStream.readFully(packet, 0, size)
+            val audioPacket = AudioPacket.fromArray(packet, ptsAndFlags)
+            if (audioPacket.type == MediaPacket.Type.AUDIO) {
+                val data = audioPacket.data
+                if (audioPacket.flag == AudioPacket.Flag.CONFIG) {
+
+                } else if (audioPacket.flag == AudioPacket.Flag.END) {
+                    // need close stream
+                } else {
+                    if (!mPause.get()) {
+                        mAudioDecoder?.decodeSample(
+                            data,
+                            0,
+                            data.size,
+                            0,
+                            audioPacket.flag.flag.toInt()
+                        )
+                    }
+                }
+            }
+        }
+    }
 
     @Throws
     private fun decodeVideo(dataInputStream: DataInputStream) {
         if (dataInputStream.available() > 0) {
 
-            if (!isReadHeader) {
+            if (!isVideoReadHeader) {
                 //读取宽高
                 val headerBytes = ByteArray(12)
                 dataInputStream.readFully(headerBytes, 0, 12)
@@ -263,7 +321,7 @@ class ScrcpyVM(app: Application) : AndroidViewModel(app) {
                 val height = byteBuffer.getInt()
                 Logger.logDebug("width=$width,height=$height,codecId=$codecId")
             }
-            isReadHeader = true
+            isVideoReadHeader = true
 
 
             val frameMetaBytes = ByteArray(12)
@@ -314,10 +372,8 @@ class ScrcpyVM(app: Application) : AndroidViewModel(app) {
                             videoPacket.flag.flag.toInt()
                         )
                     }
-
                 }
             }
         }
     }
-
 }

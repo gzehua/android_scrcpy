@@ -14,16 +14,18 @@ public final class DesktopConnection implements Closeable {
 
     private final LocalSocket videoSocket;
     private final FileDescriptor videoFd;
-    private OutputStream videoOutput;
+    private final LocalSocket audioSocket;
+    private final FileDescriptor audioFd;
 
     private final LocalSocket controlSocket;
     private final ControlChannel controlChannel;
 
-    private DesktopConnection(LocalSocket videoSocket, LocalSocket controlSocket) throws IOException {
+    private DesktopConnection(LocalSocket videoSocket, LocalSocket audioSocket, LocalSocket controlSocket) throws IOException {
         this.videoSocket = videoSocket;
+        this.audioSocket = audioSocket;
         this.controlSocket = controlSocket;
         videoFd = videoSocket != null ? videoSocket.getFileDescriptor() : null;
-        videoOutput = videoSocket.getOutputStream();
+        audioFd = audioSocket != null ? audioSocket.getFileDescriptor() : null;
         controlChannel = controlSocket != null ? new ControlChannel(controlSocket) : null;
     }
 
@@ -46,10 +48,14 @@ public final class DesktopConnection implements Closeable {
             throws IOException {
         String socketName = getSocketName(scid);
         LocalSocket videoSocket = null;
+        LocalSocket audioSocket = null;
         LocalSocket controlSocket = null;
         try {
             if (video) {
                 videoSocket = connect(socketName);
+            }
+            if (audio) {
+                audioSocket = connect(socketName);
             }
             if (control) {
                 controlSocket = connect(socketName);
@@ -58,19 +64,26 @@ public final class DesktopConnection implements Closeable {
             if (videoSocket != null) {
                 videoSocket.close();
             }
+            if (audioSocket != null) {
+                audioSocket.close();
+            }
             if (controlSocket != null) {
                 controlSocket.close();
             }
             throw e;
         }
 
-        return new DesktopConnection(videoSocket, controlSocket);
+        return new DesktopConnection(videoSocket, audioSocket, controlSocket);
     }
 
     public void shutdown() throws IOException {
         if (videoSocket != null) {
             videoSocket.shutdownInput();
             videoSocket.shutdownOutput();
+        }
+        if (audioSocket != null) {
+            audioSocket.shutdownInput();
+            audioSocket.shutdownOutput();
         }
         if (controlSocket != null) {
             controlSocket.shutdownInput();
@@ -82,6 +95,9 @@ public final class DesktopConnection implements Closeable {
         if (videoSocket != null) {
             videoSocket.close();
         }
+        if (audioSocket != null) {
+            audioSocket.close();
+        }
         if (controlSocket != null) {
             controlSocket.close();
         }
@@ -89,6 +105,10 @@ public final class DesktopConnection implements Closeable {
 
     public FileDescriptor getVideoFd() {
         return videoFd;
+    }
+
+    public FileDescriptor getAudioFd() {
+        return audioFd;
     }
 
     public ControlChannel getControlChannel() {

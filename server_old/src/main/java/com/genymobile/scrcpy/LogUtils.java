@@ -35,6 +35,20 @@ public final class LogUtils {
         return builder.toString();
     }
 
+    public static String buildAudioEncoderListMessage() {
+        StringBuilder builder = new StringBuilder("List of audio encoders:");
+        List<CodecUtils.DeviceEncoder> audioEncoders = CodecUtils.listAudioEncoders();
+        if (audioEncoders.isEmpty()) {
+            builder.append("\n    (none)");
+        } else {
+            for (CodecUtils.DeviceEncoder encoder : audioEncoders) {
+                builder.append("\n    --audio-codec=").append(encoder.getCodec().getName());
+                builder.append(" --audio-encoder='").append(encoder.getInfo().getName()).append("'");
+            }
+        }
+        return builder.toString();
+    }
+
     public static String buildDisplayListMessage() {
         StringBuilder builder = new StringBuilder("List of displays:");
         DisplayManager displayManager = ServiceManager.getDisplayManager();

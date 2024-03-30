@@ -64,4 +64,15 @@ public final class CodecUtils {
         }
         return encoders;
     }
+
+    public static List<DeviceEncoder> listAudioEncoders() {
+        List<DeviceEncoder> encoders = new ArrayList<>();
+        MediaCodecList codecs = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
+        for (AudioCodec codec : AudioCodec.values()) {
+            for (MediaCodecInfo info : getEncoders(codecs, codec.getMimeType())) {
+                encoders.add(new DeviceEncoder(codec, info));
+            }
+        }
+        return encoders;
+    }
 }

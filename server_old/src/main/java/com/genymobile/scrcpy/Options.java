@@ -7,13 +7,17 @@ import java.util.Locale;
 
 public class Options {
 
-    private Ln.Level logLevel = Ln.Level.DEBUG;
+    private Ln.Level logLevel = Ln.Level.VERBOSE;
     private int scid = -1; // 31-bit non-negative value, or -1
     private boolean video = true;
+    private boolean audio = false;
     private int maxSize;
     private VideoCodec videoCodec = VideoCodec.H264;
+    private AudioCodec audioCodec = AudioCodec.RAW;
     private VideoSource videoSource = VideoSource.DISPLAY;
+    private AudioSource audioSource = AudioSource.OUTPUT;
     private int videoBitRate = 8000000;
+    private int audioBitRate = 128000;
     private int maxFps;
     private int lockVideoOrientation = -1;
     private Rect crop;
@@ -28,7 +32,10 @@ public class Options {
     private boolean showTouches;
     private boolean stayAwake;
     private List<CodecOption> videoCodecOptions;
+    private List<CodecOption> audioCodecOptions;
+
     private String videoEncoder;
+    private String audioEncoder;
     private boolean powerOffScreenOnClose;
     private boolean clipboardAutosync = true;
     private boolean downsizeOnError = true;
@@ -54,6 +61,10 @@ public class Options {
         return video;
     }
 
+    public boolean getAudio() {
+        return audio;
+    }
+
     public int getMaxSize() {
         return maxSize;
     }
@@ -62,12 +73,24 @@ public class Options {
         return videoCodec;
     }
 
+    public AudioCodec getAudioCodec() {
+        return audioCodec;
+    }
 
     public VideoSource getVideoSource() {
         return videoSource;
     }
+
+    public AudioSource getAudioSource() {
+        return audioSource;
+    }
+
     public int getVideoBitRate() {
         return videoBitRate;
+    }
+
+    public int getAudioBitRate() {
+        return audioBitRate;
     }
 
     public int getMaxFps() {
@@ -126,8 +149,16 @@ public class Options {
         return videoCodecOptions;
     }
 
+    public List<CodecOption> getAudioCodecOptions() {
+        return audioCodecOptions;
+    }
+
     public String getVideoEncoder() {
         return videoEncoder;
+    }
+
+    public String getAudioEncoder() {
+        return audioEncoder;
     }
 
     public boolean getPowerOffScreenOnClose() {
@@ -214,6 +245,9 @@ public class Options {
                 case "video":
                     options.video = Boolean.parseBoolean(value);
                     break;
+                case "audio":
+                    options.audio = Boolean.parseBoolean(value);
+                    break;
                 case "video_codec":
                     VideoCodec videoCodec = VideoCodec.findByName(value);
                     if (videoCodec == null) {
@@ -221,11 +255,35 @@ public class Options {
                     }
                     options.videoCodec = videoCodec;
                     break;
+                case "audio_codec":
+                    AudioCodec audioCodec = AudioCodec.findByName(value);
+                    if (audioCodec == null) {
+                        throw new IllegalArgumentException("Audio codec " + value + " not supported");
+                    }
+                    options.audioCodec = audioCodec;
+                    break;
+                case "video_source":
+                    VideoSource videoSource = VideoSource.findByName(value);
+                    if (videoSource == null) {
+                        throw new IllegalArgumentException("Video source " + value + " not supported");
+                    }
+                    options.videoSource = videoSource;
+                    break;
+                case "audio_source":
+                    AudioSource audioSource = AudioSource.findByName(value);
+                    if (audioSource == null) {
+                        throw new IllegalArgumentException("Audio source " + value + " not supported");
+                    }
+                    options.audioSource = audioSource;
+                    break;
                 case "max_size":
                     options.maxSize = Integer.parseInt(value) & ~7; // multiple of 8
                     break;
                 case "video_bit_rate":
                     options.videoBitRate = Integer.parseInt(value);
+                    break;
+                case "audio_bit_rate":
+                    options.audioBitRate = Integer.parseInt(value);
                     break;
                 case "max_fps":
                     options.maxFps = Integer.parseInt(value);
@@ -253,11 +311,18 @@ public class Options {
                 case "video_codec_options":
                     options.videoCodecOptions = CodecOption.parse(value);
                     break;
+                case "audio_codec_options":
+                    options.audioCodecOptions = CodecOption.parse(value);
+                    break;
                 case "video_encoder":
                     if (!value.isEmpty()) {
                         options.videoEncoder = value;
                     }
                     break;
+                case "audio_encoder":
+                    if (!value.isEmpty()) {
+                        options.audioEncoder = value;
+                    }
                 case "power_off_on_close":
                     options.powerOffScreenOnClose = Boolean.parseBoolean(value);
                     break;

@@ -114,7 +114,7 @@ public final class Server {
         int scid = options.getScid();
         boolean control = options.getControl();
         boolean video = options.getVideo();
-        boolean audio = false;
+        boolean audio = options.getAudio();
         boolean camera = video && options.getVideoSource() == VideoSource.CAMERA;
 
         final Device device = camera ? null : new Device(options);
@@ -127,6 +127,19 @@ public final class Server {
         try {
 
             SurfaceCapture surfaceCapture = null;
+            if (audio) {
+                AudioCodec audioCodec = options.getAudioCodec();
+                AudioCapture audioCapture = new AudioCapture(options.getAudioSource());
+                Streamer audioStreamer = new Streamer(connection.getAudioFd(), audioCodec, options.getSendCodecMeta(), options.getSendFrameMeta());
+                AsyncProcessor audioRecorder;
+                if (audioCodec == AudioCodec.RAW) {
+                    audioRecorder = new AudioRawRecorder(audioCapture, audioStreamer);
+                } else {
+                    audioRecorder = new AudioEncoder(audioCapture, audioStreamer, options.getAudioBitRate(), options.getAudioCodecOptions(),
+                            options.getAudioEncoder());
+                }
+                asyncProcessors.add(audioRecorder);
+            }
             if (video) {
                 Streamer videoStreamer = new Streamer(connection.getVideoFd(), options.getVideoCodec(), options.getSendCodecMeta(),
                         options.getSendFrameMeta());
@@ -224,6 +237,7 @@ public final class Server {
 
             if (options.getListEncoders()) {
                 Ln.i(LogUtils.buildVideoEncoderListMessage());
+                Ln.i(LogUtils.buildAudioEncoderListMessage());
             }
             if (options.getListDisplays()) {
                 Ln.i(LogUtils.buildDisplayListMessage());
