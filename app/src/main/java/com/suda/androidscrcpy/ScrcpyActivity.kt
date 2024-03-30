@@ -16,8 +16,8 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.Toast
-import android.widget.ViewSwitcher.KEEP_SCREEN_ON
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
 import androidx.core.view.WindowCompat
@@ -25,10 +25,13 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import com.suda.androidscrcpy.utils.ADBUtils
 
+const val TIME_INTERVAL: Long = 2000 // 定义两次返回间的时间间隔
 
 class ScrcpyActivity : androidx.activity.ComponentActivity() {
 
-    private val TIME_INTERVAL: Long = 2000 // 定义两次返回间的时间间隔
+    private var mBackPressed: Long = 0
+    private val mScrcpyVM: ScrcpyVM by viewModels()
+    private var mSurface: Surface? = null
 
     private val mSurfaceView: SurfaceView by lazy {
         findViewById(R.id.decoder_surface)
@@ -37,12 +40,6 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
         findViewById(R.id.container)
     }
 
-    private val mScrcpyVM: ScrcpyVM by viewModels()
-    var mSurface: Surface? = null
-    var resumeFromPause = false
-
-
-    var mBackPressed: Long = 0
     private val mDevice: String? by lazy {
         intent.getStringExtra("device")
     }
@@ -63,11 +60,9 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         mScrcpyVM.init(mDevice!!)
-
         setUpUi(withNav)
-        window.addFlags(KEEP_SCREEN_ON)
-
         registerReceiver(mUsbUnPlugReceiver, IntentFilter(ACTION_USB_DEVICE_DETACHED))
         mScrcpyVM.rotationLiveData.observe(this) {
             if (it == SCREEN_ORIENTATION_PORTRAIT) {

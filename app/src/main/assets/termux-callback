@@ -1,4 +1,4 @@
-#!/system/bin/sh
+#!/bin/sh
 #set -e -u
 echo "termux callback invoked arg $@"
 echo "TERMUX_USB_DEV=$TERMUX_USB_DEV" > /sdcard/termux-callback.log
