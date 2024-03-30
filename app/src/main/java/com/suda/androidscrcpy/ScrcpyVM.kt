@@ -172,8 +172,8 @@ class ScrcpyVM(app: Application) : AndroidViewModel(app) {
                 mDevice,
                 "shell",
                 "CLASSPATH=/data/local/tmp/scrcpy-server.jar app_process / com.genymobile.scrcpy.Server 1.0 " +
-                        "audio=$mAudio" +
-                        "max_size=$maxSize",
+                        "audio=$mAudio " +
+                        "max_size=$maxSize ",
             )
         }.start()
     }
