@@ -47,7 +47,7 @@ class MainVM(ctx: Application) : AndroidViewModel(ctx) {
         withContext(Dispatchers.IO) {
             while (true) {
                 if (adbServerStatus.value == STATUS_TURN_ON) {
-                    val res = ADBUtils.exec("adb.bin-arm", "devices")
+                    val res = ADBUtils.exec("adb_termux", "devices")
                     val list = res.split("\n").toList()
                     adbList.clear()
                     if (list.size > 1) {
@@ -80,9 +80,9 @@ class MainVM(ctx: Application) : AndroidViewModel(ctx) {
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
                 if (code.isNotEmpty()) {
-                    ADBUtils.pair("adb.bin-arm", "$ip:$port", code)
+                    ADBUtils.pair("adb_termux", "$ip:$port", code)
                 } else {
-                    ADBUtils.exec("adb.bin-arm", "connect", "$ip:$port")
+                    ADBUtils.exec("adb_termux", "connect", "$ip:$port")
                 }
             }
         }

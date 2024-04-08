@@ -103,7 +103,7 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
             val appswitchButton = findViewById<View>(R.id.appswitch_button)
             backButton.setOnClickListener {
                 ADBUtils.exec(
-                    "adb.bin-arm",
+                    "adb_termux",
                     "-s",
                     mDevice.toString(),
                     "shell", "input", "keyevent", "4"
@@ -111,7 +111,7 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
             }
             homeButton.setOnClickListener {
                 ADBUtils.exec(
-                    "adb.bin-arm",
+                    "adb_termux",
                     "-s",
                     mDevice.toString(),
                     "shell",
@@ -122,7 +122,7 @@ class ScrcpyActivity : androidx.activity.ComponentActivity() {
             }
             appswitchButton.setOnClickListener {
                 ADBUtils.exec(
-                    "adb.bin-arm",
+                    "adb_termux",
                     "-s",
                     mDevice.toString(),
                     "shell",

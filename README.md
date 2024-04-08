@@ -21,6 +21,8 @@ https://github.com/nightmare-space/adb_kit
 
 https://github.com/termux/termux-api
 
+https://github.com/termux/termux-api-package
+
 https://github.com/nohajc/vendor-adb-patched
 
 https://github.com/tytydraco/LADB
@@ -28,6 +30,8 @@ https://github.com/tytydraco/LADB
 https://github.com/Genymobile/scrcpy
 
 https://github.com/updeshxp/scrcpy-android
+
+https://github.com/RohitVerma882/termux-adb
 
 ## BSD
 

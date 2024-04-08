@@ -82,7 +82,7 @@ class ScrcpyVM(app: Application) : AndroidViewModel(app) {
         }
         this.mDevice = device
         ADBUtils.exec(
-            "adb.bin-arm",
+            "adb_termux",
             "-s",
             device.toString(),
             "push",
@@ -91,7 +91,7 @@ class ScrcpyVM(app: Application) : AndroidViewModel(app) {
         )
 
         ADBUtils.exec(
-            "adb.bin-arm",
+            "adb_termux",
             "-s",
             device.toString(),
             "reverse",
@@ -120,7 +120,7 @@ class ScrcpyVM(app: Application) : AndroidViewModel(app) {
     override fun onCleared() {
         super.onCleared()
         ADBUtils.exec(
-            "adb.bin-arm",
+            "adb_termux",
             "-s",
             mDevice.toString(),
             "reverse",
@@ -137,7 +137,7 @@ class ScrcpyVM(app: Application) : AndroidViewModel(app) {
 
     private fun computeScreenInfo(maxSize: Int) {
         val wh = ADBUtils.exec(
-            "adb.bin-arm",
+            "adb_termux",
             "-s",
             mDevice.toString(),
             "shell",
@@ -167,7 +167,7 @@ class ScrcpyVM(app: Application) : AndroidViewModel(app) {
         Thread { startConnection() }.start()
         Thread {
             ADBUtils.exec2(
-                "adb.bin-arm",
+                "adb_termux",
                 "-s",
                 mDevice,
                 "shell",

@@ -18,6 +18,19 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        ndkVersion = "21.1.6352462"
+        externalNativeBuild {
+            cmake {
+                abiFilters("armeabi-v7a", "arm64-v8a")
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path("${project.projectDir}/CMakeLists.txt")
+        }
     }
 
     buildTypes {
@@ -47,6 +60,10 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+    }
+
+    lint {
+        abortOnError=false
     }
 }
 
