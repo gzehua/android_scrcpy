@@ -13,6 +13,7 @@ TODO
 - [x] adb wifi
 - [x] adb pair
 - [x] scrcpy(video & audio)
+- [ ] 不依赖termux-api，源码编译adb，hook dev访问
 - [ ] adb shell
 
 ## 感谢
