@@ -28,7 +28,7 @@
 # define PREFIX "/data/data/com.suda.androidscrcpy/files/usr"
 #endif
 
-#define LISTEN_SOCKET_ADDRESS "com.termux.api://listen"
+#define LISTEN_SOCKET_ADDRESS "com.suda.androidscrcpy://listen"
 
 /* passes the arguments to the plugin via the unix socket, falling
  * back to exec_am_broadcast() if that doesn't work

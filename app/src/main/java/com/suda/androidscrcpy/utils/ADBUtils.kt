@@ -24,23 +24,18 @@ object ADBUtils {
     private lateinit var libPath: String
 
     private val libBinFile = arrayListOf(
-        "adb_termux"
+        "adb_termux",
+        "termux-api"
     )
 
     private val assetFile = arrayListOf(
         "am",
         "am.apk",
-        "termux-api",
         "termux-toast",
         "termux-usb",
         "termux-vibrate",
         "scrcpy-server.jar"
     )
-
-    private val libSoFile = arrayListOf(
-        "libtermux-api.so",
-    )
-
 
     fun exec(binName: String, vararg args: String): String {
         val sb = StringBuilder()
@@ -188,14 +183,6 @@ object ADBUtils {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 File("$binFolder/$so").delete()
                 val target: Path = Paths.get("$libFolder/${so}.so")
-                val link: Path = Paths.get("$binFolder/$so")
-                Files.createSymbolicLink(link, target)
-            }
-        }
-        for (so in libSoFile) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                File("$binFolder/$so").delete()
-                val target: Path = Paths.get("$libFolder/${so}")
                 val link: Path = Paths.get("$binFolder/$so")
                 Files.createSymbolicLink(link, target)
             }

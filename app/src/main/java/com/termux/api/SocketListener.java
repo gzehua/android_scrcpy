@@ -20,7 +20,7 @@ import java.util.regex.Pattern;
 
 public class SocketListener {
 
-    public static final String LISTEN_ADDRESS =  "com.termux.api://listen";
+    public static final String LISTEN_ADDRESS =  "com.suda.androidscrcpy://listen";
     private static final Pattern EXTRA_STRING = Pattern.compile("(-e|--es|--esa) +([^ ]+) +\"(.*?)(?<!\\\\)\"", Pattern.DOTALL);
     private static final Pattern EXTRA_BOOLEAN = Pattern.compile("--ez +([^ ]+) +([^ ]+)");
     private static final Pattern EXTRA_INT = Pattern.compile("--ei +([^ ]+) +(-?[0-9]+)");
